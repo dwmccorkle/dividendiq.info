@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Calculator -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="tab-bar" id="calc-tabs"></div>
+
+<div class="page">
+
+  <!-- PROJECTION TAB -->
+  <div id="tab-projection" class="page-content">
+    <div class="section-label">Your numbers</div>
+    <div class="card" id="proj-inputs"></div>
+    <div class="stats-grid" id="proj-summary" style="margin-bottom:12px;"></div>
+    <div class="stats-grid three" id="proj-milestones" style="margin-bottom:12px;"></div>
+    <div class="card" id="proj-chart-card" style="margin-bottom:12px;"></div>
+    <div class="section-label">20-Year Projection</div>
+    <div class="table-wrap" id="proj-table"></div>
+    <div id="proj-disclaimer"></div>
+    <div style="height:80px;"></div>
+  </div>
+
+  <!-- SCENARIOS TAB -->
+  <div id="tab-scenarios" class="page-content hidden">
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:4px;">Side-by-side scenario comparison</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;">Base case uses your numbers. Edit Aggressive and Conservative to model any what-if.</div>
+    </div>
+    <div id="scenario-cards"></div>
+    <div class="card" id="scenario-chart" style="margin-bottom:12px;"></div>
+    <div class="table-wrap" id="scenario-table"></div>
+    <div style="height:80px;"></div>
+  </div>
+
+  <!-- REVERSE TAB -->
+  <div id="tab-reverse" class="page-content hidden">
+    <div class="card navy" style="margin-bottom:12px;">
+      <div class="hero-label">REVERSE INCOME CALCULATOR</div>
+      <div class="hero-title" style="font-size:16px;">How much do I need to retire?</div>
+      <div class="hero-sub">Enter your target monthly income and yield -- we work backwards to tell you exactly how much capital you need.</div>
+    </div>
+    <div class="card" id="reverse-inputs" style="margin-bottom:12px;"></div>
+    <div id="reverse-answer"></div>
+    <div id="reverse-gap"></div>
+    <div id="reverse-shares" class="card" style="margin-bottom:12px;"></div>
+    <div id="rev-disclaimer"></div>
+    <div style="height:80px;"></div>
+  </div>
+
+  <!-- WITHDRAWAL TAB -->
+  <div id="tab-withdrawal" class="page-content hidden">
+    <div class="card navy" style="margin-bottom:12px;">
+      <div class="hero-label">WITHDRAWAL VS DIVIDEND INCOME</div>
+      <div class="hero-title" style="font-size:16px;">Which retirement strategy is safer?</div>
+      <div class="hero-sub">Compare the 4% withdrawal rule against living on dividends alone. See when each strategy runs out -- or does not.</div>
+    </div>
+    <div class="grid-2" id="wd-comparison" style="margin-bottom:12px;"></div>
+    <div class="card" id="wd-controls" style="margin-bottom:12px;"></div>
+    <div class="card" id="wd-insight" style="margin-bottom:12px;"></div>
+    <div class="table-wrap" id="wd-table"></div>
+    <div id="wd-disclaimer"></div>
+    <div style="height:80px;"></div>
+  </div>
+
+</div>
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+const DQ = window.DQ;
+const profile = DQ.State.profile();
+
+// ── Shared form state ─────────────────────────────────────────────────────────
+const F = {
+  portfolio:   profile.portfolio   || 47884,
+  monthly:     profile.monthly     || 100,
+  ssIncome:    profile.ss_income   || 1800,
+  ssAge:       profile.ss_age      || 66,
+  currentAge:  profile.age         || 64,
+  returnRate:  9,
+  yieldRate:   6.2,
+  drip:        true,
+  otherIncome: profile.other_income|| 0,
+  inflation:   3.0,
+  ssGrowth:    2.5,
+};
+
+// Scenarios
+const SCENARIOS = [
+  {label:'Base case',    color:'var(--blue)',  mods:{}},
+  {label:'Aggressive',   color:'var(--green)', mods:{monthly:500,  yieldRate:8.0, returnRate:10}},
+  {label:'Conservative', color:'var(--amber)', mods:{monthly:0,    yieldRate:4.5, returnRate:6}},
+];
+
+// Reverse state
+let RV = { targetIncome:profile.income_goal||3000, targetYield:6.2, ss:profile.ss_income||1800, other:0 };
+let WD = { rate:4.0, lifespan:95 };
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav('Calculator'));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav('Calc'));
+  buildTabs();
+  renderProjection();
+  renderReverse();
+  renderWithdrawal();
+  renderScenarios();
+});
+
+function buildTabs() {
+  const tabs = [{id:'projection',label:'Projection'},{id:'scenarios',label:'Scenarios'},{id:'reverse',label:'Reverse'},{id:'withdrawal',label:'Withdrawal'}];
+  const bar = document.getElementById('calc-tabs');
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id==='projection'?' active':'');
+    btn.textContent = t.label;
+    btn.onclick = () => switchTab(t.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchTab(id) {
+  ['projection','scenarios','reverse','withdrawal'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== id);
+  });
+  document.querySelectorAll('.tab-btn').forEach((btn,i) => {
+    btn.classList.toggle('active', ['projection','scenarios','reverse','withdrawal'][i] === id);
+  });
+}
+
+// ── FIELD BUILDER ─────────────────────────────────────────────────────────────
+function numField(label, key, min, max, step, pre, suf, obj, onChange) {
+  const div = document.createElement('div');
+  div.style.marginBottom = '10px';
+  div.innerHTML = `<div class="field-label">${label}</div><div class="input-group">${pre?`<span class="input-prefix">${pre}</span>`:''}<input type="number" value="${obj[key]}" min="${min}" max="${max}" step="${step}" style="flex:1;padding:8px 10px;font-size:13px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);outline:none;font-family:inherit;"/>${suf?`<span class="input-prefix">${suf}</span>`:''}</div>`;
+  div.querySelector('input').addEventListener('input', e => { obj[key] = parseFloat(e.target.value)||0; onChange(); });
+  return div;
+}
+
+// ── PROJECTION ────────────────────────────────────────────────────────────────
+function renderProjection() {
+  const goal = profile.income_goal || 3000;
+  buildProjInputs();
+  updateProjection();
+}
+
+function buildProjInputs() {
+  const el = document.getElementById('proj-inputs');
+  el.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0 14px;';
+  const fields = [
+    ['Portfolio value','portfolio',0,5000000,1000,'$',''],
+    ['Monthly contribution','monthly',0,10000,50,'$',''],
+    ['Annual return','returnRate',1,25,0.5,'','%'],
+    ['Dividend yield','yieldRate',1,20,0.1,'','%'],
+    ['Social Security/mo','ssIncome',0,5000,50,'$',''],
+    ['SS start age','ssAge',62,70,1,'',''],
+    ['Your age','currentAge',50,80,1,'',''],
+    ['Inflation rate','inflation',0,10,0.5,'','%'],
+  ];
+  fields.forEach(([label,key,min,max,step,pre,suf]) => {
+    grid.appendChild(numField(label,key,min,max,step,pre,suf,F,updateProjection));
+  });
+  el.appendChild(grid);
+
+  // DRIP toggle
+  const tog = document.createElement('div');
+  tog.className = 'toggle-wrap';
+  tog.innerHTML = `<button id="drip-toggle" class="toggle ${F.drip?'on':''}" onclick="F.drip=!F.drip;this.classList.toggle('on');updateProjection();"></button><span style="font-size:12px;color:var(--text);">Reinvest dividends (DRIP)</span>`;
+  el.appendChild(tog);
+}
+
+function updateProjection() {
+  const rows = DQ.projectIncome({...F, years:20});
+  const goal = profile.income_goal || 3000;
+  const breakEven = rows.find(r => r.totalMo >= goal);
+  const capNeeded = Math.max(0, (goal - (F.ssIncome||0) - (F.otherIncome||0)) * 12 / (F.yieldRate/100));
+
+  // Summary cards
+  const sum = document.getElementById('proj-summary');
+  sum.innerHTML = `
+    <div class="stat-card" style="background:${breakEven?'var(--green-lt)':'var(--red-lt)'};border-color:${breakEven?'var(--green)':'var(--red)'}33;">
+      <div class="stat-label" style="color:${breakEven?'var(--green)':'var(--red)'};">GOAL HIT AT</div>
+      <div class="stat-value" style="font-size:20px;color:${breakEven?'var(--green)':'var(--red)'};">${breakEven?'Age '+breakEven.age:'20yr+'}</div>
+      <div class="stat-sub">${breakEven?'Year '+breakEven.yr+' -- '+DQ.fmt(breakEven.totalMo)+'/mo':'Increase yield or contributions'}</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label" style="color:var(--blue);">CAPITAL NEEDED</div>
+      <div class="stat-value" style="font-size:18px;">${DQ.fmtK(capNeeded)}</div>
+      <div class="stat-sub">at ${F.yieldRate}% to hit ${DQ.fmt(goal)}/mo</div>
+    </div>`;
+
+  // Milestones
+  const m100 = rows.find(r=>r.bal>=100000);
+  const m250 = rows.find(r=>r.bal>=250000);
+  const m500 = rows.find(r=>r.bal>=500000);
+  const mil  = document.getElementById('proj-milestones');
+  mil.innerHTML = [
+    {l:'$100K',d:m100,c:'var(--blue)',bg:'var(--blue-lt)'},
+    {l:'$250K',d:m250,c:'var(--green)',bg:'var(--green-lt)'},
+    {l:'$500K',d:m500,c:'var(--amber)',bg:'var(--amber-lt)'},
+  ].map(m=>`<div class="stat-card" style="background:${m.d?m.bg:'var(--bg)'};border-color:${m.d?m.c:''+'33'};">
+    <div class="stat-label" style="color:${m.d?m.c:'var(--muted)'};">Reach ${m.l}</div>
+    ${m.d?`<div class="stat-value" style="font-size:18px;color:${m.c};">Age ${m.d.age}</div><div class="stat-sub">Year ${m.d.yr}</div>`:'<div style="font-size:13px;color:var(--muted);margin-top:4px;">Beyond 20yr</div>'}
+  </div>`).join('');
+
+  // SVG chart
+  const chartCard = document.getElementById('proj-chart-card');
+  const maxInc = Math.max(...rows.map(r=>r.totalMo), goal) * 1.1;
+  const W = 300, H = 90, P = 8;
+  const toY = v => (1-(v/maxInc))*(H-P*2-12)+P;
+  const pts = rows.map((r,i)=>`${i/(rows.length-1)*(W-P*2)+P},${toY(r.totalMo)}`).join(' ');
+  const pts2= rows.map((r,i)=>`${i/(rows.length-1)*(W-P*2)+P},${toY(r.realMo)}`).join(' ');
+  const goalY = toY(goal);
+  const ageLabels = [0,4,9,14,19].map(i=>`<text x="${i/(rows.length-1)*(W-P*2)+P}" y="${H-1}" font-size="7" fill="#64748B" text-anchor="middle">Age ${rows[i]?.age||''}</text>`).join('');
+  chartCard.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px;">Monthly Income Growth</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Nominal (blue) vs inflation-adjusted at ${F.inflation}% (amber) vs goal (green dashed)</div>
+    <svg width="300" height="${H}" style="display:block;width:100%;" viewBox="0 0 ${W} ${H}">
+      <line x1="${P}" y1="${goalY}" x2="${W-P}" y2="${goalY}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>
+      <text x="${W-P-2}" y="${goalY-3}" font-size="7" fill="var(--green)" text-anchor="end">Goal</text>
+      <polyline fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-dasharray="3,2" stroke-linecap="round" points="${pts2}"/>
+      <polyline fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      ${ageLabels}
+    </svg>`;
+
+  // Table
+  const tableWrap = document.getElementById('proj-table');
+  tableWrap.innerHTML = `<table>
+    <thead><tr>${['Yr','Age','Portfolio','Div/mo','SS/yr','Total/mo','Real/mo'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>{
+      const great=r.totalMo>=goal, good=r.totalMo>=goal*0.75;
+      return `<tr class="${great?'highlight-green':good?'highlight-blue':''}">
+        <td style="text-align:left;">${r.yr}</td><td>${r.age}</td><td>${DQ.fmtK(r.bal)}</td>
+        <td>${DQ.fmt(r.divMo)}</td><td>${r.ss>0?DQ.fmt(r.ss):'--'}</td>
+        <td style="font-weight:${great?800:400};color:${great?'var(--green)':''};">${DQ.fmt(r.totalMo)}</td>
+        <td style="color:var(--muted);">${DQ.fmt(r.realMo)}</td>
+      </tr>`;
+    }).join('')}</tbody>
+    <tfoot><tr><td colspan="7">Green = goal reached. Real/mo = inflation-adjusted in today\'s dollars.</td></tr></tfoot>
+  </table>`;
+  document.getElementById('proj-disclaimer').innerHTML = DQ.disclaimerHTML();
+}
+
+// ── SCENARIOS ─────────────────────────────────────────────────────────────────
+function renderScenarios() {
+  const goal = profile.income_goal || 3000;
+  const getF  = (mods) => ({...F, ...mods});
+  const results = SCENARIOS.map(s => DQ.projectIncome({...getF(s.mods), years:20}));
+
+  const cardsEl = document.getElementById('scenario-cards');
+  cardsEl.innerHTML = '';
+  SCENARIOS.forEach((sc,idx) => {
+    const r10 = results[idx][9];
+    const be  = results[idx].find(r=>r.totalMo>=goal);
+    const f   = getF(sc.mods);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = `margin-bottom:10px;border:2px solid ${sc.color}44;background:${sc.color}0F;`;
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:800;color:${sc.color};">${sc.label}</div>
+        <div style="text-align:right;"><div style="font-size:10px;color:var(--muted);">Income at year 10</div><div style="font-size:18px;font-weight:800;color:${sc.color};">${DQ.fmt(r10.totalMo)}/mo</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+        ${[['Yield',f.yieldRate+'%'],['Return',f.returnRate+'%'],['Monthly +',DQ.fmt(f.monthly)]].map(([l,v])=>`<div style="background:rgba(255,255,255,0.6);border-radius:8px;padding:6px;"><div style="font-size:9px;color:var(--muted);">${l}</div><div style="font-size:12px;font-weight:700;">${v}</div></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:12px;font-size:10px;color:var(--muted);flex-wrap:wrap;">
+        <span>Portfolio yr 10: <strong style="color:${sc.color};">${DQ.fmtK(r10.bal)}</strong></span>
+        <span>Goal hit: <strong style="color:${be?'var(--green)':'var(--red)'};">${be?'Age '+be.age:'Beyond 20yr'}</strong></span>
+        <span>Yr 20: <strong style="color:${sc.color};">${DQ.fmt(results[idx][19].totalMo)}/mo</strong></span>
+      </div>`;
+    cardsEl.appendChild(card);
+  });
+
+  // Multi-line SVG chart
+  const W=300, H=110, P=8;
+  const allVals = results.flatMap(r=>r.map(row=>row.totalMo));
+  const min=0, max=Math.max(...allVals, goal)*1.05||1;
+  const toY = v => (1-((v-min)/(max-min)))*(H-P*2-12)+P;
+  const goalY = toY(goal);
+  const lines = results.map((rows,si) => {
+    const pts = rows.map((r,i)=>`${i/(rows.length-1)*(W-P*2)+P},${toY(r.totalMo)}`).join(' ');
+    return `<polyline fill="none" stroke="${SCENARIOS[si].color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>`;
+  });
+  const xLabels = [0,4,9,14,19].map(i=>`<text x="${i/(results[0].length-1)*(W-P*2)+P}" y="${H-1}" font-size="7" fill="#64748B" text-anchor="middle">Age ${(F.currentAge||64)+i+1}</text>`).join('');
+  const chartEl = document.getElementById('scenario-chart');
+  chartEl.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">Monthly Income -- All Scenarios</div>
+    <svg width="300" height="${H}" style="display:block;width:100%;" viewBox="0 0 ${W} ${H}">
+      <line x1="${P}" y1="${goalY}" x2="${W-P}" y2="${goalY}" stroke="var(--green)" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>
+      <text x="${W-P-2}" y="${goalY-3}" font-size="7" fill="var(--green)" text-anchor="end">Goal ${DQ.fmt(goal)}</text>
+      ${lines.join('')}${xLabels}
+    </svg>
+    <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
+      ${SCENARIOS.map(sc=>`<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);"><div style="width:14px;height:3px;background:${sc.color};border-radius:2px;"></div>${sc.label}</div>`).join('')}
+    </div>`;
+
+  // Comparison table
+  const tbl = document.getElementById('scenario-table');
+  tbl.innerHTML = `<table><thead><tr><th>Yr</th><th>Age</th>${SCENARIOS.map(sc=>`<th style="color:${sc.color};">${sc.label}</th>`).join('')}</tr></thead>
+  <tbody>${results[0].filter((_,i)=>i%2===0||i===19).map((r,_)=>{
+    const idx = results[0].indexOf(r);
+    return `<tr>${[r.yr,r.age].map(v=>`<td style="text-align:left;">${v}</td>`).join('')}${results.map((res,si)=>{const v=res[idx]?res[idx].totalMo:0;const hit=v>=goal;return `<td style="font-weight:${hit?700:400};color:${hit?SCENARIOS[si].color:''};">${DQ.fmt(v)}${hit?' *':''}</td>`;}).join('')}</tr>`;
+  }).join('')}</tbody>
+  <tfoot><tr><td colspan="${2+SCENARIOS.length}">* = income goal reached</td></tr></tfoot></table>`;
+}
+
+// ── REVERSE ───────────────────────────────────────────────────────────────────
+function renderReverse() {
+  const el = document.getElementById('reverse-inputs');
+  el.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0 12px;';
+
+  function mkField(label, key, min, max, step, pre, suf) {
+    const div = document.createElement('div');
+    div.style.marginBottom = '10px';
+    div.innerHTML = `<div class="field-label">${label}</div><div class="input-group">${pre?`<span class="input-prefix">${pre}</span>`:''}<input type="number" value="${RV[key]}" min="${min}" max="${max}" step="${step}" style="flex:1;padding:8px 10px;font-size:13px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);outline:none;font-family:inherit;"/>${suf?`<span class="input-prefix">${suf}</span>`:''}</div>`;
+    div.querySelector('input').addEventListener('input', e => { RV[key]=parseFloat(e.target.value)||0; updateReverse(); });
+    return div;
+  }
+  [['Monthly income goal','targetIncome',500,20000,100,'$',''],['Target yield','targetYield',1,20,0.5,'','%'],['Social Security/mo','ss',0,5000,50,'$',''],['Other income/mo','other',0,10000,50,'$','']].forEach(args=>grid.appendChild(mkField(...args)));
+  el.appendChild(grid);
+  updateReverse();
+}
+
+function updateReverse() {
+  const divNeeded = Math.max(0, RV.targetIncome - RV.ss - RV.other);
+  const capNeeded = divNeeded > 0 ? (divNeeded*12)/(RV.targetYield/100) : 0;
+  const currentGap = Math.max(0, capNeeded - F.portfolio);
+  const r = F.returnRate/100/12;
+  const yrs5  = Math.max(0, r>0 ? (capNeeded-F.portfolio*Math.pow(1+r,60))/((Math.pow(1+r,60)-1)/r) : (capNeeded-F.portfolio)/60);
+  const yrs10 = Math.max(0, r>0 ? (capNeeded-F.portfolio*Math.pow(1+r,120))/((Math.pow(1+r,120)-1)/r) : (capNeeded-F.portfolio)/120);
+
+  document.getElementById('reverse-answer').innerHTML = `
+    <div class="card navy" style="margin-bottom:12px;">
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:0.5px;margin-bottom:6px;">YOU NEED FROM DIVIDENDS</div>
+      <div style="font-family:'Manrope',sans-serif;font-size:36px;font-weight:800;color:#4ade80;line-height:1;margin-bottom:4px;">${DQ.fmt(divNeeded)}<span style="font-size:14px;color:rgba(255,255,255,0.5);">/month</span></div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:14px;">= ${DQ.fmt(RV.targetIncome)}/mo goal minus ${DQ.fmt(RV.ss)} SS minus ${DQ.fmt(RV.other)} other</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;">
+          <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px;">CAPITAL NEEDED</div>
+          <div style="font-size:22px;font-weight:800;color:white;">${DQ.fmtK(capNeeded)}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55);">at ${RV.targetYield}% yield</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;">
+          <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px;">YOU HAVE NOW</div>
+          <div style="font-size:22px;font-weight:800;color:${currentGap>0?'#fbbf24':'#4ade80'};">${DQ.fmtK(F.portfolio)}</div>
+          <div style="font-size:10px;color:${currentGap>0?'#fbbf24':'#4ade80'};">${currentGap>0?'Gap: '+DQ.fmtK(currentGap):'Goal exceeded!'}</div>
+        </div>
+      </div>
+    </div>`;
+
+  const gapEl = document.getElementById('reverse-gap');
+  gapEl.innerHTML = '';
+  if (currentGap > 0) {
+    gapEl.innerHTML = `
+      <div class="card" style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">How to close the ${DQ.fmtK(currentGap)} gap</div>
+        <div class="grid-2">
+          ${[{l:'5-year plan',mo:yrs5},{l:'10-year plan',mo:yrs10}].map(p=>`<div style="background:var(--blue-lt);border:1px solid rgba(27,117,188,0.2);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:4px;">${p.l}</div><div style="font-size:18px;font-weight:800;color:var(--navy);">${DQ.fmt(Math.max(0,p.mo))}/mo</div><div style="font-size:10px;color:var(--muted);">contribution needed</div></div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  const incomeStocks = [
+    {t:'SCHD',y:3.5,p:31.85},{t:'JEPI',y:8.5,p:56.00},{t:'ARCC',y:9.5,p:20.50},
+    {t:'O',   y:5.5,p:55.00},{t:'CVX', y:4.1,p:155.0},{t:'MAIN',y:8.5,p:52.00},
+  ];
+  const sharesEl = document.getElementById('reverse-shares');
+  sharesEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px;">Shares needed to close the income gap</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">How many shares of each stock fills your ${DQ.fmt(divNeeded)}/mo dividend need</div>
+    ${incomeStocks.map(s=>{
+      const shares = Math.ceil(divNeeded*12/(s.y/100*s.p));
+      const cost   = shares * s.p;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:12px;font-weight:800;color:var(--navy);width:44px;">${s.t}</div>
+        <div style="flex:1;font-size:11px;color:var(--muted);">${s.t} at ${s.y}% yield</div>
+        <div style="font-size:11px;font-weight:700;color:var(--blue);">${shares} shares</div>
+        <div style="font-size:10px;color:var(--muted);width:60px;text-align:right;">${DQ.fmtK(cost)}</div>
+      </div>`;
+    }).join('')}
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Prices are approximate. Always verify current data with your brokerage.</div>`;
+
+  document.getElementById('rev-disclaimer').innerHTML = DQ.disclaimerHTML();
+}
+
+// ── WITHDRAWAL ────────────────────────────────────────────────────────────────
+function renderWithdrawal() {
+  const port  = F.portfolio || 47884;
+  const goal  = profile.income_goal || 3000;
+  const age   = F.currentAge || 64;
+  const rows  = DQ.projectIncome({...F, years:30});
+  const divMo = rows[0] ? rows[0].totalMo : 0;
+
+  function projectWD(rate) {
+    let bal = port, annual = port*rate/100, r = F.returnRate/100, out=[];
+    for (let yr=1;yr<=30;yr++) { bal=bal*(1+r)-annual; out.push({yr,age:age+yr,bal:Math.round(Math.max(0,bal))}); if(bal<=0)break; }
+    return out;
+  }
+
+  const wd3=projectWD(3), wd4=projectWD(4), wd5=projectWD(5);
+  const dep = (rows) => { const f=rows.find(r=>r.bal<=0); return f?f.age:null; };
+
+  // Top comparison
+  document.getElementById('wd-comparison').innerHTML = `
+    <div style="background:var(--red-lt);border:2px solid rgba(220,38,38,0.25);border-radius:var(--r);padding:14px;">
+      <div style="font-size:10px;font-weight:700;color:var(--red);margin-bottom:4px;">4% WITHDRAWAL</div>
+      <div style="font-size:22px;font-weight:800;color:var(--navy);">${DQ.fmt(Math.round(port*0.04/12))}/mo</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">from ${DQ.fmtK(port)} at 4%/yr</div>
+      <div style="font-size:10px;font-weight:600;color:var(--red);">${dep(wd4)?'Depletes age '+dep(wd4):'Survives 30+ years'}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5;">Principal shrinks every year.</div>
+    </div>
+    <div style="background:var(--green-lt);border:2px solid rgba(58,170,53,0.25);border-radius:var(--r);padding:14px;">
+      <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:4px;">DIVIDEND INCOME</div>
+      <div style="font-size:22px;font-weight:800;color:var(--navy);">${DQ.fmt(divMo)}/mo</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">from dividends today</div>
+      <div style="font-size:10px;font-weight:600;color:var(--green);">Never depletes -- grows with DRIP</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5;">Principal stays intact.</div>
+    </div>`;
+
+  // Controls
+  const ctrl = document.getElementById('wd-controls');
+  ctrl.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Safe withdrawal rate analysis</div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="field-label">Withdrawal rate</span><span id="wd-rate-val" style="font-size:10px;font-weight:700;color:var(--blue);"></span></div>
+      <input type="range" class="range" min="2" max="8" step="0.5" value="${WD.rate}" id="wd-rate-slider"/>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="field-label">Target lifespan</span><span id="wd-life-val" style="font-size:10px;font-weight:700;color:var(--blue);"></span></div>
+      <input type="range" class="range" min="80" max="100" step="1" value="${WD.lifespan}" id="wd-life-slider"/>
+    </div>
+    <div class="grid-3">
+      ${[{r:3,rows:wd3,c:'var(--green)'},{r:4,rows:wd4,c:'var(--amber)'},{r:5,rows:wd5,c:'var(--red)'}].map(m=>{
+        const mo=Math.round(port*m.r/100/12), d=dep(m.rows), safe=!d||d>WD.lifespan;
+        return `<div style="background:${safe?'var(--green-lt)':'var(--red-lt)'};border:1px solid ${safe?'var(--green)':'var(--red)'}44;border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:${m.c};">${m.r}% rate</div>
+          <div style="font-size:14px;font-weight:800;color:var(--navy);">${DQ.fmt(mo)}/mo</div>
+          <div style="font-size:9px;color:${safe?'var(--green)':'var(--red)'};font-weight:600;margin-top:3px;">${d&&d<=WD.lifespan?'Depletes age '+d:'Safe to '+WD.lifespan}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  function updateSliders() {
+    WD.rate     = parseFloat(document.getElementById('wd-rate-slider').value);
+    WD.lifespan = parseInt(document.getElementById('wd-life-slider').value);
+    document.getElementById('wd-rate-val').textContent  = WD.rate.toFixed(1) + '% = ' + DQ.fmt(Math.round(port*WD.rate/100/12)) + '/mo';
+    document.getElementById('wd-life-val').textContent  = 'Age ' + WD.lifespan;
+  }
+  updateSliders();
+  ctrl.querySelector('#wd-rate-slider').addEventListener('input', updateSliders);
+  ctrl.querySelector('#wd-life-slider').addEventListener('input', updateSliders);
+
+  // Key insight
+  const insight = document.getElementById('wd-insight');
+  const divAt20 = rows[19];
+  insight.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;">THE KEY INSIGHT</div>
+    ${[
+      {label:'4% withdrawal gives you',  value:DQ.fmt(Math.round(port*0.04/12))+'/mo', note:'but principal shrinks',      color:'var(--amber)'},
+      {label:'Your current dividends',   value:DQ.fmt(divMo)+'/mo',                     note:'principal stays intact',      color:'var(--blue)'},
+      {label:'Dividend income at age '+(Math.min(age+20,90)), value:divAt20?DQ.fmt(divAt20.totalMo)+'/mo':'--', note:'income grows over time', color:'var(--green)'},
+      {label:'Income goal',              value:DQ.fmt(goal)+'/mo',                       note:'your target',                 color:'var(--navy)'},
+    ].map(row=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(27,117,188,0.1);">
+      <div><div style="font-size:11px;color:var(--navy);">${row.label}</div><div style="font-size:9px;color:var(--muted);">${row.note}</div></div>
+      <div style="font-size:14px;font-weight:800;color:${row.color};">${row.value}</div>
+    </div>`).join('')}
+    <div style="font-size:12px;color:var(--navy);line-height:1.7;margin-top:10px;">The dividend income approach preserves your principal while generating income. With DRIP enabled, your income grows every year. The 4% rule spends down your portfolio -- you may run out of money if you live longer than expected.</div>`;
+
+  // Depletion table
+  const tbl = document.getElementById('wd-table');
+  const points = [0,4,9,14,19,24,29];
+  tbl.innerHTML = `<table>
+    <thead><tr><th>Yr</th><th>Age</th><th>3% WD</th><th>4% WD</th><th>5% WD</th><th>Div (DRIP)</th></tr></thead>
+    <tbody>${points.map(i=>{
+      const r4=wd4[i], r3=wd3[i], r5=wd5[i], rd=rows[i];
+      if(!r4) return '';
+      return `<tr>
+        <td style="text-align:left;">${r4.yr}</td><td>${r4.age}</td>
+        <td style="color:${r3&&r3.bal>0?'var(--green)':'var(--red)'};">${r3&&r3.bal>0?DQ.fmtK(r3.bal):'$0'}</td>
+        <td style="color:${r4.bal>0?'var(--amber)':'var(--red)'};">${r4.bal>0?DQ.fmtK(r4.bal):'$0'}</td>
+        <td style="color:${r5&&r5.bal>0?'var(--amber)':'var(--red)'};">${r5&&r5.bal>0?DQ.fmtK(r5.bal):'$0'}</td>
+        <td style="font-weight:700;color:var(--blue);">${rd?DQ.fmtK(rd.bal):'--'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+    <tfoot><tr><td colspan="6">WD = portfolio balance after annual withdrawals. Div (DRIP) = portfolio with dividends reinvested.</td></tr></tfoot>
+  </table>`;
+  document.getElementById('wd-disclaimer').innerHTML = DQ.disclaimerHTML();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Plans -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+
+<div class="page">
+  <div class="hero" style="text-align:center;padding:32px 20px;">
+    <div class="hero-label">SIMPLE, TRANSPARENT PRICING</div>
+    <div class="hero-title">Start free. Upgrade when ready.</div>
+    <div class="hero-sub">14-day free trial on Pro. Cancel anytime. No credit card required for free plan.</div>
+  </div>
+
+  <div class="pricing-grid" style="max-width:480px;margin:0 auto;">
+
+    <!-- Free -->
+    <div class="pricing-card">
+      <div class="pricing-name">Free</div>
+      <div class="pricing-price">$0<span>/month</span></div>
+      <ul class="pricing-features">
+        <li>DividendIQ Retirement Score</li>
+        <li>5 AI advisor questions/day</li>
+        <li>Portfolio tracker (up to 5 positions)</li>
+        <li>All 10 income strategies</li>
+        <li>Dividend screener</li>
+        <li>Market news feed</li>
+        <li>Basic income calculator</li>
+        <li>Glossary and quiz</li>
+      </ul>
+      <a href="dashboard.html" class="btn outline full">Get started free</a>
+    </div>
+
+    <!-- Pro -->
+    <div class="pricing-card featured">
+      <div class="pricing-popular">Most popular</div>
+      <div class="pricing-name">Pro</div>
+      <div class="pricing-price">$19<span>/month</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">or $182.40/yr (save 20%)</div>
+      <ul class="pricing-features">
+        <li>Everything in Free</li>
+        <li>Unlimited AI advisor questions</li>
+        <li>Deep Portfolio Audit (A-D grade)</li>
+        <li>Tax Intelligence analysis</li>
+        <li>Social Security optimization</li>
+        <li>Portfolio comparison mode</li>
+        <li>Unlimited portfolio positions</li>
+        <li>Full 4-tab income calculator</li>
+        <li>Dividend calendar</li>
+        <li>Earnings calendar</li>
+        <li>Sector heatmap (live)</li>
+        <li>Macro dashboard (FRED data)</li>
+        <li>Broker PDF report</li>
+        <li>Priority email support</li>
+      </ul>
+      <button class="btn green full" onclick="checkout('pro','monthly')">Start 14-day free trial</button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">No credit card required &bull; Cancel anytime</div>
+    </div>
+
+    <!-- Advisor -->
+    <div class="pricing-card">
+      <div class="pricing-name">Advisor</div>
+      <div class="pricing-price">$99<span>/month</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">or $950/yr (save 20%)</div>
+      <ul class="pricing-features">
+        <li>Everything in Pro</li>
+        <li>White-glove onboarding call</li>
+        <li>Custom portfolio review</li>
+        <li>Monthly advisor check-in</li>
+        <li>Custom income strategy document</li>
+        <li>Broker presentation PDF</li>
+        <li>Priority response within 1 hour</li>
+      </ul>
+      <button class="btn primary full" onclick="checkout('advisor','monthly')">Get Advisor</button>
+    </div>
+
+  </div>
+
+  <!-- FAQ -->
+  <div class="page-content" style="max-width:480px;margin:0 auto;padding-top:24px;">
+    <div class="section-label">Frequently asked questions</div>
+
+    <div id="faq-list"></div>
+
+    <div class="disclaimer" style="margin-top:24px;">
+      DividendIQ Pro is for informational and educational purposes only. It is not a registered investment advisor and does not provide personalized financial advice. Always consult a qualified fiduciary financial advisor before making investment decisions.
+    </div>
+  </div>
+
+  <div style="height:80px;"></div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(window.DQ.buildNav(''));
+  document.getElementById('bottom-nav-placeholder').appendChild(window.DQ.buildBottomNav(''));
+
+  const FAQ = [
+    {q:'Is DividendIQ Pro financial advice?', a:'No. DividendIQ Pro is an informational and educational tool. It is not a registered investment advisor. Always consult a qualified, fee-only fiduciary financial advisor before making investment decisions.'},
+    {q:'What data does DividendIQ use?', a:'Live market data is provided by Finnhub. Macroeconomic data comes from the Federal Reserve (FRED). AI analysis is powered by Anthropic Claude. All data is for informational purposes only.'},
+    {q:'Can I cancel anytime?', a:'Yes. Cancel your Pro or Advisor subscription at any time from your account settings or by contacting support@dividendiq.info. You retain access through the end of your paid billing period.'},
+    {q:'How does the 14-day free trial work?', a:'Start a Pro trial with no credit card required. After 14 days, your plan converts to paid at $19/month unless you cancel. You will receive a reminder email before the trial ends.'},
+    {q:'Is my financial data secure?', a:'Yes. We use Supabase (SOC 2 certified) for data storage and Stripe for payment processing. We never store your brokerage credentials or account numbers. All data is encrypted in transit and at rest.'},
+    {q:'Do you connect to my brokerage?', a:'Not directly. You enter your portfolio positions manually or by scanning a screenshot. We never ask for your brokerage login, account numbers, or Social Security number.'},
+  ];
+
+  const faqEl = document.getElementById('faq-list');
+  FAQ.forEach(f => {
+    const div = document.createElement('div');
+    div.style.cssText = 'border-bottom:1px solid var(--border);';
+    div.innerHTML = `
+      <button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('.faq-arrow').style.transform=this.nextElementSibling.classList.contains('hidden')?'rotate(0)':'rotate(180deg)'" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 0;background:none;border:none;cursor:pointer;font-family:inherit;text-align:left;">
+        <span style="font-size:13px;font-weight:600;color:var(--navy);">${f.q}</span>
+        <span class="faq-arrow" style="font-size:18px;color:var(--muted);transition:transform 0.2s;flex-shrink:0;margin-left:8px;">&#8964;</span>
+      </button>
+      <div class="hidden" style="padding-bottom:14px;font-size:12px;color:var(--muted);line-height:1.7;">${f.a}</div>`;
+    faqEl.appendChild(div);
+  });
+});
+
+async function checkout(plan, billing) {
+  try {
+    const profile = window.DQ.State.profile();
+    const res = await fetch(window.DQ.CONFIG.BACKEND_URL + '/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan, billing, email: profile.email }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else window.DQ.showToast('Checkout unavailable -- backend not yet configured.', 'error');
+  } catch {
+    window.DQ.showToast('Checkout unavailable -- backend not yet configured.', 'error');
+  }
+}
+</script>
+</body>
+</html>

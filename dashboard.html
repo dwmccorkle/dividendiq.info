@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Dashboard -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+
+<div class="page">
+  <!-- Hero score bar -->
+  <div class="hero" id="score-hero">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div id="score-ring-container"></div>
+      <div style="flex:1;min-width:160px;">
+        <div class="hero-label">DIVIDENDIQ RETIREMENT SCORE</div>
+        <div style="font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;color:white;" id="score-headline">Loading...</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.65);margin-top:4px;" id="score-sub"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;" id="score-tags"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- Income summary cards -->
+    <div class="stats-grid" style="margin-top:16px;" id="income-stats"></div>
+
+    <!-- Progress to goal -->
+    <div class="card" id="goal-card">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);">Income goal progress</div>
+        <div style="font-size:13px;font-weight:800;color:var(--green);" id="goal-pct"></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="goal-bar" style="background:var(--green);"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px;">
+        <div style="font-size:11px;color:var(--muted);" id="goal-current"></div>
+        <div style="font-size:11px;color:var(--muted);" id="goal-target"></div>
+      </div>
+    </div>
+
+    <!-- 8 Dimension scores -->
+    <div class="section-label">Score breakdown</div>
+    <div class="card" id="dimensions-card"></div>
+
+    <!-- Holdings summary -->
+    <div class="section-label">Portfolio holdings</div>
+    <div id="holdings-list"></div>
+
+    <!-- Share score -->
+    <div class="card navy" id="share-card" style="margin-top:16px;">
+      <div style="font-size:13px;font-weight:800;color:white;margin-bottom:8px;">&#127942; Share your Retirement Score</div>
+      <div id="share-text" style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px;font-size:11px;color:rgba(255,255,255,0.75);line-height:1.7;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="copyScore()" id="copy-btn" class="btn ghost sm" style="flex:1;">Copy</button>
+        <button onclick="shareLinkedIn()" class="btn sm" style="flex:1;background:rgba(10,102,194,0.5);color:white;">LinkedIn</button>
+        <button onclick="shareTwitter()" class="btn sm" style="flex:1;background:rgba(29,161,242,0.4);color:white;">X / Twitter</button>
+      </div>
+    </div>
+
+    <div id="disclaimer-placeholder"></div>
+    <div style="height:80px;"></div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const DQ = window.DQ;
+  const profile  = DQ.State.profile();
+  const holdings = DQ.State.holdings();
+  const { totalVal, totalInc, blended } = DQ.calcPortfolio(holdings);
+  const score = DQ.calcScore(profile, totalInc, blended, holdings);
+  const goal  = profile.income_goal || 3000;
+  const ss    = profile.ss_income   || 1800;
+  const totalMo = totalInc + ss;
+  const gap   = Math.max(0, goal - totalMo);
+
+  // Nav
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav('Home'));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav('Home'));
+
+  // Score ring
+  document.getElementById('score-ring-container').innerHTML = DQ.buildScoreRing(score.overall, 110);
+  document.getElementById('score-headline').textContent = profile.name + ' -- Score ' + score.overall + '/100';
+  document.getElementById('score-sub').textContent = 'Retirement confidence: ' + score.confidence + '% -- Age ' + profile.age + ' -- Retiring ' + profile.ret_age;
+
+  // Score tags
+  const tags = document.getElementById('score-tags');
+  const tagData = [
+    { label: DQ.fmt(totalInc) + '/mo dividends', cls:'tag green' },
+    { label: DQ.sfx(blended,1) + '% yield', cls:'tag' },
+    { label: holdings.length + ' positions', cls:'tag' },
+  ];
+  tagData.forEach(t => { const span = document.createElement('span'); span.className=t.cls; span.textContent=t.label; tags.appendChild(span); });
+
+  // Income stats
+  const statsEl = document.getElementById('income-stats');
+  [
+    { label:'Portfolio value',  value: DQ.fmtK(totalVal),             sub:'total invested' },
+    { label:'Monthly dividends',value: DQ.fmt(totalInc) + '/mo',      sub:'from ' + holdings.length + ' holdings' },
+    { label:'+ Social Security',value: DQ.fmt(ss) + '/mo',            sub:'starting age ' + profile.ss_age },
+    { label:'Total income',     value: DQ.fmt(totalMo) + '/mo',       sub: gap > 0 ? 'gap: ' + DQ.fmt(gap) + '/mo' : 'Goal reached!' },
+  ].forEach(s => {
+    statsEl.innerHTML += `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value" style="font-size:17px;">${s.value}</div><div class="stat-sub">${s.sub}</div></div>`;
+  });
+
+  // Goal bar
+  const pctVal = Math.min(100, Math.round(totalMo / goal * 100));
+  document.getElementById('goal-pct').textContent     = pctVal + '% of goal';
+  document.getElementById('goal-bar').style.width     = pctVal + '%';
+  document.getElementById('goal-current').textContent = DQ.fmt(totalMo) + '/mo income';
+  document.getElementById('goal-target').textContent  = 'Goal: ' + DQ.fmt(goal) + '/mo';
+
+  // Dimensions
+  const dims = [
+    { label:'Income score',      val: score.incomeScore,  desc:'Dividend income vs goal' },
+    { label:'Yield score',       val: score.yieldScore,   desc:'Blended yield quality' },
+    { label:'Diversification',   val: score.divScore,     desc:'% of holdings paying dividends' },
+    { label:'Safety score',      val: score.safetyScore,  desc:'Position concentration' },
+    { label:'Growth score',      val: score.growthScore,  desc:'Income growth potential' },
+    { label:'SS optimization',   val: score.ssScore,      desc:'Social Security as % of goal' },
+  ];
+  const dimCard = document.getElementById('dimensions-card');
+  dims.forEach(d => {
+    const color = d.val >= 80 ? 'var(--green)' : d.val >= 60 ? 'var(--amber)' : 'var(--red)';
+    dimCard.innerHTML += `
+      <div class="progress-wrap" style="margin-bottom:10px;">
+        <div class="progress-label">
+          <span class="progress-text">${d.label}</span>
+          <span class="progress-val" style="color:${color};">${d.val}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${d.val}%;background:${color};"></div></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${d.desc}</div>
+      </div>`;
+  });
+
+  // Holdings list
+  const holdEl = document.getElementById('holdings-list');
+  holdings.forEach(h => {
+    const hVal  = h.shares * (h.livePrice || h.price);
+    const hInc  = hVal * h.yield / 100 / 12;
+    const hPct  = totalVal > 0 ? hVal / totalVal * 100 : 0;
+    holdEl.innerHTML += `
+      <div class="card" style="padding:12px 14px;margin-bottom:8px;border-left:3px solid ${h.color};">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+              <div style="font-size:16px;font-weight:800;color:var(--navy);">${h.ticker}</div>
+              <span class="tag" style="background:${h.bg};color:${h.color};">${h.sleeve}</span>
+              ${h.yield > 0 ? `<span class="tag green">${h.yield}%</span>` : '<span class="tag gray">No div.</span>'}
+            </div>
+            <div style="font-size:11px;color:var(--muted);">${h.name}</div>
+            <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;">
+              <div style="height:3px;width:${Math.min(hPct*5,100)}%;background:${h.color};border-radius:2px;"></div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:13px;font-weight:800;color:var(--navy);">${DQ.fmtK(hVal)}</div>
+            <div style="font-size:11px;color:var(--green);">${h.yield > 0 ? DQ.fmt(hInc) + '/mo' : '--'}</div>
+            <div style="font-size:10px;color:var(--muted);">${DQ.sfx(hPct,1)}%</div>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  // Share score
+  const shareText = 'My DividendIQ Retirement Score: ' + score.overall + '/100 ' +
+    '| Income: ' + DQ.fmt(totalInc) + '/mo in dividends ' +
+    '| ' + DQ.sfx(blended,1) + '% blended yield ' +
+    '| Retirement Confidence: ' + score.confidence + '% ' +
+    '| Get your free score at dividendiq.info';
+  document.getElementById('share-text').textContent = shareText;
+
+  window._shareText = shareText;
+
+  // Disclaimer
+  document.getElementById('disclaimer-placeholder').innerHTML = DQ.disclaimerHTML();
+});
+
+function copyScore() {
+  navigator.clipboard.writeText(window._shareText || '').then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2500);
+  });
+}
+function shareLinkedIn() {
+  window.open('https://www.linkedin.com/sharing/share-offsite/?url=https://dividendiq.info&summary=' + encodeURIComponent(window._shareText||''), '_blank');
+}
+function shareTwitter() {
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(window._shareText||''), '_blank');
+}
+</script>
+</body>
+</html>

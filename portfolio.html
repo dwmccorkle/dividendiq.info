@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Portfolio -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+
+<div class="page">
+  <!-- Summary hero -->
+  <div class="hero">
+    <div class="hero-label">YOUR PORTFOLIO</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+      <div>
+        <div style="font-family:'Manrope',sans-serif;font-size:30px;font-weight:800;color:white;" id="port-val">--</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);">Portfolio value</div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:800;color:#4ade80;" id="port-inc">--/mo</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);">Dividend income</div>
+      </div>
+      <div>
+        <div style="font-size:20px;font-weight:800;color:white;" id="port-yield">--%</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);">Blended yield</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:8px;" id="port-updated"></div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- Add holding form -->
+    <div class="section-label">Add position</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label class="field-label">Ticker</label>
+          <input type="text" id="add-ticker" class="input" placeholder="e.g. JEPI" maxlength="8" style="text-transform:uppercase;"/>
+        </div>
+        <div>
+          <label class="field-label">Shares</label>
+          <input type="number" id="add-shares" class="input" placeholder="e.g. 50" min="0" step="0.01"/>
+        </div>
+      </div>
+      <button class="btn primary full" style="margin-top:10px;" onclick="addHolding()">Add Position</button>
+    </div>
+
+    <!-- Sleeve allocation -->
+    <div class="section-label">Sleeve allocation</div>
+    <div class="card" id="sleeve-chart" style="margin-bottom:14px;"></div>
+
+    <!-- Holdings list -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="section-label" style="margin:0;">Holdings</div>
+      <button class="btn ghost sm" onclick="refreshPrices()" id="refresh-btn">Refresh prices</button>
+    </div>
+    <div id="holdings-list"></div>
+
+    <div id="port-disclaimer"></div>
+    <div style="height:80px;"></div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+const DQ = window.DQ;
+let holdings = DQ.State.holdings();
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav('Portfolio'));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav(''));
+  document.getElementById('add-ticker').addEventListener('input', e => e.target.value = e.target.value.toUpperCase());
+  renderPortfolio();
+  document.getElementById('port-disclaimer').innerHTML = DQ.disclaimerHTML();
+});
+
+function renderPortfolio() {
+  const { totalVal, totalInc, blended } = DQ.calcPortfolio(holdings);
+  document.getElementById('port-val').textContent   = DQ.fmtK(totalVal);
+  document.getElementById('port-inc').textContent   = DQ.fmt(totalInc) + '/mo';
+  document.getElementById('port-yield').textContent = DQ.sfx(blended,1) + '%';
+  document.getElementById('port-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+  renderSleeveChart(holdings, totalVal);
+  renderHoldings(holdings, totalVal);
+}
+
+function renderSleeveChart(holdings, totalVal) {
+  const sleeves = {};
+  holdings.forEach(h => {
+    const val = h.shares * (h.livePrice || h.price);
+    if (!sleeves[h.sleeve]) sleeves[h.sleeve] = { val:0, color:h.color };
+    sleeves[h.sleeve].val += val;
+  });
+
+  const el = document.getElementById('sleeve-chart');
+  const entries = Object.entries(sleeves).sort((a,b) => b[1].val - a[1].val);
+
+  el.innerHTML = entries.map(([name, data]) => {
+    const pct = totalVal > 0 ? data.val / totalVal * 100 : 0;
+    return `
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:11px;color:var(--text2);">${name}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--navy);">${DQ.sfx(pct,1)}% &bull; ${DQ.fmtK(data.val)}</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="height:6px;width:${pct}%;background:${data.color};border-radius:3px;transition:width 0.6s ease;"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderHoldings(holdings, totalVal) {
+  const el = document.getElementById('holdings-list');
+  el.innerHTML = '';
+  holdings.forEach((h, idx) => {
+    const hVal = h.shares * (h.livePrice || h.price);
+    const hInc = hVal * h.yield / 100 / 12;
+    const hPct = totalVal > 0 ? hVal / totalVal * 100 : 0;
+    const pctChg = h.pctChg || 0;
+
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.cssText = `padding:12px 14px;margin-bottom:8px;border-left:3px solid ${h.color};`;
+    div.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+            <div style="font-size:16px;font-weight:800;color:var(--navy);">${h.ticker}</div>
+            <span class="tag" style="background:${h.bg};color:${h.color};">${h.sleeve}</span>
+            ${h.yield > 0 ? `<span class="tag green">${h.yield}%</span>` : '<span class="tag gray">No div.</span>'}
+            ${pctChg !== 0 ? `<span class="tag ${pctChg>0?'green':'red'}">${pctChg>0?'+':''}${DQ.sfx(pctChg,2)}%</span>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${h.name} &bull; ${h.shares} shares @ ${DQ.fmtK(h.livePrice||h.price)}</div>
+          <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+            <div style="height:3px;width:${Math.min(hPct*4,100)}%;background:${h.color};border-radius:2px;"></div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:14px;font-weight:800;color:var(--navy);">${DQ.fmtK(hVal)}</div>
+          <div style="font-size:11px;color:var(--green);">${h.yield > 0 ? DQ.fmt(hInc) + '/mo' : '--'}</div>
+          <div style="font-size:10px;color:var(--muted);">${DQ.sfx(hPct,1)}% of portfolio</div>
+          <button onclick="removeHolding(${idx})" style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer;margin-top:4px;font-family:inherit;">Remove</button>
+        </div>
+      </div>`;
+    el.appendChild(div);
+  });
+
+  if (!holdings.length) {
+    el.innerHTML = '<div class="card text-center"><div style="font-size:13px;color:var(--muted);">No holdings yet. Add your first position above.</div></div>';
+  }
+}
+
+async function addHolding() {
+  const ticker = document.getElementById('add-ticker').value.trim().toUpperCase();
+  const shares = parseFloat(document.getElementById('add-shares').value);
+  if (!ticker || !shares || shares <= 0) { DQ.showToast('Enter a ticker and number of shares', 'error'); return; }
+
+  const existing = holdings.findIndex(h => h.ticker === ticker);
+  if (existing >= 0) { DQ.showToast(ticker + ' already in portfolio -- remove and re-add to update shares', 'error'); return; }
+
+  DQ.showToast('Fetching ' + ticker + ' data...');
+  const q = await DQ.fetchQuote(ticker);
+  if (!q.ok || !q.price) { DQ.showToast('Could not find price for ' + ticker + '. Check the ticker symbol.', 'error'); return; }
+
+  const newHolding = {
+    ticker, name: ticker, shares,
+    price: q.price, livePrice: q.price, pctChg: q.pct,
+    yield: 0, sleeve: 'Custom',
+    color: 'var(--blue)', bg: 'var(--blue-lt)',
+  };
+
+  holdings.push(newHolding);
+  DQ.State.set('holdings', holdings);
+
+  document.getElementById('add-ticker').value = '';
+  document.getElementById('add-shares').value = '';
+  renderPortfolio();
+  DQ.showToast(ticker + ' added! Update the yield % in your holdings list if it pays dividends.');
+}
+
+function removeHolding(idx) {
+  const ticker = holdings[idx].ticker;
+  holdings.splice(idx, 1);
+  DQ.State.set('holdings', holdings);
+  renderPortfolio();
+  DQ.showToast(ticker + ' removed');
+}
+
+async function refreshPrices() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = 'Refreshing...';
+  btn.disabled = true;
+
+  await Promise.all(holdings.map(async (h, i) => {
+    const q = await DQ.fetchQuote(h.ticker);
+    if (q.ok && q.price) {
+      holdings[i].livePrice = q.price;
+      holdings[i].pctChg   = q.pct;
+    }
+  }));
+
+  DQ.State.set('holdings', holdings);
+  renderPortfolio();
+  btn.textContent = 'Refresh prices';
+  btn.disabled = false;
+  DQ.showToast('Prices updated');
+}
+</script>
+</body>
+</html>

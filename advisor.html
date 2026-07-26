@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>AI Advisor -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+    .advisor-layout { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+    .advisor-body   { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+    .mode-panel     { flex:1; overflow-y:auto; padding:12px 12px 80px; }
+  </style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+
+<div class="advisor-layout">
+  <!-- Mode tabs -->
+  <div class="tab-bar" id="mode-tabs" style="top:60px;"></div>
+
+  <!-- Usage bar (free users) -->
+  <div id="usage-bar" class="hidden" style="padding:6px 12px;background:var(--amber-lt);border-bottom:1px solid var(--amber);display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:11px;color:var(--amber);" id="usage-text"></span>
+    <a href="plans.html" class="btn sm" style="background:var(--amber);color:white;padding:4px 12px;">Upgrade</a>
+  </div>
+
+  <div class="advisor-body">
+    <!-- CHAT MODE -->
+    <div id="panel-chat" class="advisor-body">
+      <div class="chat-feed" id="chat-feed">
+        <!-- Welcome message injected by JS -->
+      </div>
+      <div class="quick-prompts" id="quick-prompts"></div>
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" id="chat-input" placeholder="Ask your DividendIQ advisor..."/>
+        <button class="chat-send" id="send-btn" onclick="sendMessage()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- DEEP AUDIT MODE -->
+    <div id="panel-deep" class="mode-panel hidden">
+      <div class="card navy" style="margin-bottom:14px;">
+        <div class="hero-label">PROFESSIONAL GRADE</div>
+        <div class="hero-title" style="font-size:18px;">Deep Portfolio Audit</div>
+        <div class="hero-sub">Graded across 4 dimensions. Up to 5 specific action items ranked by priority and income impact.</div>
+      </div>
+      <div id="deep-content">
+        <div class="card" style="margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">What this audit covers</div>
+          ${['Overall portfolio grade (A+ to D)','4 dimension scores: Income, Diversification, Safety, Growth','Critical issues with specific fixes','Top 5 priority actions with income impact','Sleeve analysis and key tax observation','12-month concrete action plan'].map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text);">&#10003; ${i}</div>`).join('')}
+        </div>
+        <button class="btn primary full" onclick="runDeepAudit()">Run Deep Portfolio Audit</button>
+      </div>
+      <div id="deep-result" class="hidden"></div>
+    </div>
+
+    <!-- TAX INTEL MODE -->
+    <div id="panel-tax" class="mode-panel hidden">
+      <div class="card" style="background:linear-gradient(135deg,var(--blue),var(--navy));margin-bottom:14px;">
+        <div class="hero-label">PRO FEATURE</div>
+        <div class="hero-title">Dividend Tax Intelligence</div>
+        <div class="hero-sub">Qualified vs ordinary income, IRMAA Medicare risk, Roth conversion analysis, account placement strategy, and RMD planning.</div>
+      </div>
+      <button class="btn primary full" onclick="runTaxAnalysis()">Run Tax Analysis</button>
+      <div id="tax-result" class="hidden" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- SS STRATEGY MODE -->
+    <div id="panel-ss" class="mode-panel hidden">
+      <div class="card" style="background:linear-gradient(135deg,var(--amber),#92400E);margin-bottom:14px;">
+        <div class="hero-label">HIGH VALUE ANALYSIS</div>
+        <div class="hero-title">Social Security Optimization</div>
+        <div id="ss-current-plan" class="hero-sub"></div>
+      </div>
+      <button class="btn full" style="background:var(--amber);color:white;" onclick="runSSStrategy()">Analyze SS Strategy</button>
+      <div id="ss-result" class="hidden" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- COMPARE MODE -->
+    <div id="panel-compare" class="advisor-body hidden">
+      <div class="chat-feed" id="compare-feed"></div>
+      <div class="quick-prompts" id="compare-prompts"></div>
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" id="compare-input" placeholder="Compare two dividend investments..."/>
+        <button class="chat-send" onclick="sendCompare()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+const DQ = window.DQ;
+const profile  = DQ.State.profile();
+const holdings = DQ.State.holdings();
+const { totalVal, totalInc, blended } = DQ.calcPortfolio(holdings);
+const firstName = profile.name ? profile.name.split(' ')[0] : 'there';
+let chatHistory = DQ.State.chatHistory();
+let loading = false;
+let usedToday = parseInt(localStorage.getItem('diq_used_' + new Date().toDateString()) || '0');
+const limit = DQ.isProUser() ? 9999 : 5;
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav('Advisor'));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav('Advisor'));
+
+  buildModeTabs();
+  showWelcome();
+  buildQuickPrompts();
+  updateUsageBar();
+
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMessage();
+  });
+  document.getElementById('compare-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendCompare();
+  });
+
+  document.getElementById('ss-current-plan').textContent =
+    'Your current plan: claim Social Security at age ' + profile.ss_age + ' for ' + DQ.fmt(profile.ss_income) + '/mo. This analysis tells you if that is optimal.';
+});
+
+function buildModeTabs() {
+  const modes = [
+    {id:'chat',    label:'Chat'},
+    {id:'compare', label:'Compare'},
+    {id:'deep',    label:'Deep Audit'},
+    {id:'tax',     label:'Tax Intel'},
+    {id:'ss',      label:'SS Strategy'},
+  ];
+  const bar = document.getElementById('mode-tabs');
+  modes.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (m.id === 'chat' ? ' active' : '');
+    btn.textContent = m.label;
+    btn.onclick = () => switchMode(m.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchMode(id) {
+  ['chat','deep','tax','ss','compare'].forEach(m => {
+    document.getElementById('panel-' + m).classList.toggle('hidden', m !== id);
+  });
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', ['chat','compare','deep','tax','ss'][i] === id);
+  });
+  if (id === 'compare' && !document.getElementById('compare-feed').children.length) {
+    buildCompareFeed();
+  }
+}
+
+function buildContext() {
+  const holdStr = holdings.map(h => h.ticker + '(' + h.shares + 'sh,' + DQ.sfx(h.yield,1) + '% yield,' + h.sleeve + ')').join(', ');
+  const gap = Math.max(0, (profile.income_goal||3000) - totalInc - (profile.ss_income||0));
+  return 'CLIENT PROFILE: ' + profile.name + ', age ' + (profile.age||64) +
+    ', retiring age ' + (profile.ret_age||65) + ', broker ' + (profile.broker||'Schwab') +
+    '. INCOME GOAL: $' + (profile.income_goal||3000) + '/mo total. ' +
+    'Social Security: $' + (profile.ss_income||1800) + '/mo starting age ' + (profile.ss_age||66) + '. ' +
+    'Portfolio: $' + Math.round(totalVal).toLocaleString() +
+    ' | Dividend income: $' + Math.round(totalInc) + '/mo' +
+    ' | Blended yield: ' + DQ.sfx(blended,1) + '%' +
+    ' | INCOME GAP: $' + Math.round(gap) + '/mo still needed. ' +
+    'Holdings (' + holdings.length + ' positions): ' + holdStr + '. ' +
+    'TODAY: July 25, 2026.';
+}
+
+function showWelcome() {
+  const feed = document.getElementById('chat-feed');
+  feed.innerHTML = `
+    <div class="chat-bubble">
+      <div class="chat-avatar">DQ</div>
+      <div class="chat-text">
+        <strong>Hi ${firstName}! I am your DividendIQ Advisor.</strong><br><br>
+        I know your full portfolio, your income goal, and your retirement timeline.
+        Ask me anything -- I give specific, data-driven answers with actual tickers, share counts, and dollar figures. No vague advice.<br><br>
+        <div style="background:var(--blue-lt);border:1px solid rgba(27,117,188,0.2);border-radius:8px;padding:10px;margin:8px 0;">
+          <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:6px;">YOUR SITUATION AT A GLANCE</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div><div style="font-size:9px;color:var(--muted);">PORTFOLIO</div><div style="font-size:13px;font-weight:700;">${DQ.fmtK(totalVal)}</div></div>
+            <div><div style="font-size:9px;color:var(--muted);">MONTHLY INCOME</div><div style="font-size:13px;font-weight:700;color:var(--green);">${DQ.fmt(totalInc)}/mo</div></div>
+            <div><div style="font-size:9px;color:var(--muted);">INCOME GOAL</div><div style="font-size:13px;font-weight:700;">${DQ.fmt(profile.income_goal||3000)}/mo</div></div>
+            <div><div style="font-size:9px;color:var(--muted);">POSITIONS</div><div style="font-size:13px;font-weight:700;">${holdings.length} holdings</div></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6;">For informational purposes only -- not personalized financial advice. Verify with your brokerage.</div>
+      </div>
+    </div>`;
+}
+
+function buildQuickPrompts() {
+  const prompts = [
+    'What is my single biggest portfolio risk right now?',
+    'Which 3 positions should I add to close my income gap?',
+    'Is my blended yield high enough for retirement next year?',
+    'Rank my current holdings by dividend safety score',
+    'Build me a 5-step income plan for the next 12 months',
+  ];
+  const el = document.getElementById('quick-prompts');
+  prompts.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-prompt';
+    btn.textContent = p;
+    btn.onclick = () => sendMessage(p);
+    el.appendChild(btn);
+  });
+}
+
+function buildCompareFeed() {
+  const feed = document.getElementById('compare-feed');
+  feed.innerHTML = `<div class="chat-bubble"><div class="chat-avatar">DQ</div><div class="chat-text"><strong>Investment Comparison Mode</strong><br><br>Ask me to compare any two dividend investments. I will give you a side-by-side analysis tailored to your retirement income goals.</div></div>`;
+  const prompts = [
+    'JEPI vs JEPQ: which fits my situation better?',
+    'ARCC vs MAIN vs FSK: which BDC for retirement?',
+    'Dividend growth (SCHD) vs high yield (JEPI): which wins?',
+    'mREITs vs BDCs: risk and reward comparison',
+    'CVX vs XOM vs ENB: best energy dividend for 2026?',
+  ];
+  const el = document.getElementById('compare-prompts');
+  prompts.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-prompt';
+    btn.textContent = p;
+    btn.onclick = () => sendCompare(p);
+    el.appendChild(btn);
+  });
+}
+
+function updateUsageBar() {
+  if (DQ.isProUser()) return;
+  const bar = document.getElementById('usage-bar');
+  bar.classList.remove('hidden');
+  const remaining = Math.max(0, limit - usedToday);
+  document.getElementById('usage-text').textContent =
+    remaining > 0 ? remaining + ' of ' + limit + ' free questions remaining today' : 'Daily limit reached -- upgrade for unlimited';
+}
+
+async function sendMessage(text) {
+  const input = document.getElementById('chat-input');
+  const msg   = text || input.value.trim();
+  if (!msg || loading) return;
+  if (usedToday >= limit && !DQ.isProUser()) { DQ.showToast('Daily limit reached -- upgrade for unlimited', 'error'); return; }
+  input.value = '';
+  loading = true;
+  document.getElementById('send-btn').disabled = true;
+
+  addBubble('user', msg);
+  const typingEl = addTyping();
+
+  usedToday++;
+  localStorage.setItem('diq_used_' + new Date().toDateString(), usedToday);
+  updateUsageBar();
+
+  const context = buildContext();
+  const userMsg = { role:'user', content: context + ' USER QUESTION: ' + msg };
+  chatHistory.push(userMsg);
+
+  try {
+    const reply = await DQ.callClaude(chatHistory.slice(-20), DQ.AI_SYSTEM, 1500);
+    chatHistory.push({ role:'assistant', content:reply });
+    DQ.State.setChatHistory(chatHistory);
+    typingEl.remove();
+    addBubble('bot', reply);
+  } catch(e) {
+    typingEl.remove();
+    addBubble('bot', 'Error: ' + e.message + '. Please try again.');
+  }
+  loading = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+async function sendCompare(text) {
+  const input = document.getElementById('compare-input');
+  const msg   = text || input.value.trim();
+  if (!msg || loading) return;
+  input.value = '';
+  loading = true;
+
+  const feed = document.getElementById('compare-feed');
+  feed.innerHTML += `<div class="chat-bubble" style="flex-direction:row-reverse;"><div class="chat-avatar" style="background:#dcfce7;color:#166534;">Me</div><div class="chat-text" style="background:var(--blue-lt);color:#042C53;border-radius:12px 4px 12px 12px;">${msg}</div></div>`;
+  const typingEl = addTypingTo(feed);
+
+  const context = buildContext();
+  try {
+    const reply = await DQ.callClaude([{role:'user',content:context+' COMPARISON REQUEST: '+msg}], DQ.AI_SYSTEM, 1200);
+    typingEl.remove();
+    feed.innerHTML += `<div class="chat-bubble"><div class="chat-avatar">DQ</div><div class="chat-text" style="white-space:pre-wrap;">${reply}</div></div>`;
+  } catch(e) {
+    typingEl.remove();
+    feed.innerHTML += `<div class="chat-bubble"><div class="chat-avatar">DQ</div><div class="chat-text">Error: ${e.message}</div></div>`;
+  }
+  loading = false;
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addBubble(role, text) {
+  const feed = document.getElementById('chat-feed');
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.className = 'chat-bubble' + (isUser ? ' user' : '');
+  div.innerHTML = `<div class="chat-avatar" ${isUser ? 'style="background:#dcfce7;color:#166534;"' : ''}>${isUser ? 'Me' : 'DQ'}</div><div class="chat-text" ${isUser ? 'style="background:var(--blue-lt);color:#042C53;border-radius:12px 4px 12px 12px;"' : ''}>${text.replace(/\n/g,'<br>')}</div>`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  return div;
+}
+
+function addTyping() { return addTypingTo(document.getElementById('chat-feed')); }
+function addTypingTo(feed) {
+  const div = document.createElement('div');
+  div.className = 'chat-bubble';
+  div.innerHTML = '<div class="chat-avatar">DQ</div><div class="chat-text"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  return div;
+}
+
+async function runDeepAudit() {
+  document.getElementById('deep-content').classList.add('hidden');
+  const res = document.getElementById('deep-result');
+  res.classList.remove('hidden');
+  res.innerHTML = '<div class="loading-center"><div class="spinner" style="width:32px;height:32px;"></div><div class="loading-title">Running deep audit...</div><div class="loading-sub">Analyzing ' + holdings.length + ' positions against retirement income standards. 10-20 seconds.</div></div>';
+
+  const context = buildContext();
+  try {
+    const json = await DQ.callClaude([{role:'user',content:context+' Run a COMPREHENSIVE RETIREMENT INCOME AUDIT. Respond with valid JSON only. Fields: overallGrade(A+/A/B+/B/C+/C/D), incomeScore(0-100), diversificationScore(0-100), safetyScore(0-100), growthScore(0-100), headline(string), criticalIssues(array of {issue,severity,fix}), strengths(array of 3 strings), topActions(array of 5 {priority,action(BUY/SELL/REDUCE/HOLD),ticker,shares,rationale,monthlyIncomeImpact,urgency(Immediate/Soon/Eventually)}), taxNote(string), twelveMonthPlan(string), projectedIncomeIn12Months(number), keyRisk(string).'}], DQ.AI_SYSTEM, 2500);
+    const d = JSON.parse(json.replace(/```json|```/g,'').trim());
+    renderDeepAudit(d);
+  } catch(e) {
+    res.innerHTML = '<div class="card red"><div style="font-size:13px;color:var(--red);">Audit failed: ' + e.message + '</div><button class="btn ghost sm" onclick="location.reload()">Try again</button></div>';
+  }
+}
+
+function renderDeepAudit(d) {
+  const res = document.getElementById('deep-result');
+  const gc  = d.overallGrade && d.overallGrade[0]==='A' ? 'var(--green)' : d.overallGrade && d.overallGrade[0]==='B' ? 'var(--blue)' : d.overallGrade && d.overallGrade[0]==='C' ? 'var(--amber)' : 'var(--red)';
+  const dims = [{l:'Income',v:d.incomeScore},{l:'Diversif.',v:d.diversificationScore},{l:'Safety',v:d.safetyScore},{l:'Growth',v:d.growthScore}];
+  const actionColors = {BUY:'var(--green)',SELL:'var(--red)',REDUCE:'var(--amber)',INCREASE:'var(--green)',HOLD:'var(--blue)'};
+
+  res.innerHTML = `
+    <div class="card navy" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+        <div style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;color:${gc};flex-shrink:0;">${d.overallGrade}</div>
+        <div style="font-size:14px;font-weight:700;color:white;">${d.headline}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
+        ${dims.map(dim=>`<div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:8px;color:rgba(255,255,255,0.5);">${dim.l.toUpperCase()}</div><div style="font-size:18px;font-weight:800;color:${DQ.scoreColor(dim.v||0)};">${dim.v}</div></div>`).join('')}
+      </div>
+    </div>
+
+    ${d.criticalIssues && d.criticalIssues.length ? `
+    <div class="card red" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px;">CRITICAL ISSUES</div>
+      ${d.criticalIssues.map(i=>`<div style="padding:10px 0;border-bottom:1px solid rgba(220,38,38,0.15);"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span class="tag red">${i.severity}</span><div style="font-size:12px;font-weight:700;color:var(--navy);">${i.issue}</div></div><div style="font-size:11px;color:var(--text);line-height:1.6;">Fix: ${i.fix}</div></div>`).join('')}
+    </div>` : ''}
+
+    <div class="card green" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--green-dk);margin-bottom:8px;">STRENGTHS</div>
+      ${(d.strengths||[]).map(s=>`<div style="font-size:12px;color:var(--navy);padding:4px 0;border-bottom:1px solid rgba(58,170,53,0.15);line-height:1.5;">+ ${s}</div>`).join('')}
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+      <div style="background:var(--navy);padding:8px 14px;font-size:10px;font-weight:700;color:white;">TOP 5 PRIORITY ACTIONS</div>
+      ${(d.topActions||[]).map((a,i)=>`
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'white':'var(--bg)'};">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--navy);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;">${a.priority}</div>
+            <span class="tag" style="background:${actionColors[a.action]||'var(--blue)'}22;color:${actionColors[a.action]||'var(--blue)'};">${a.action}</span>
+            <div style="font-size:14px;font-weight:800;color:var(--navy);">${a.ticker}</div>
+            ${a.shares ? `<div style="font-size:10px;color:var(--muted);">${a.shares} shares</div>` : ''}
+            <div style="margin-left:auto;font-size:11px;font-weight:700;color:var(--green);">${a.monthlyIncomeImpact}</div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;">${a.rationale}</div>
+          <div style="font-size:9px;font-weight:600;color:${a.urgency==='Immediate'?'var(--red)':'var(--amber)'};margin-top:4px;">${a.urgency}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="card blue" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;">KEY TAX OBSERVATION</div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.8;">${d.taxNote}</div>
+    </div>
+
+    <div class="card green" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--green-dk);margin-bottom:4px;">12-MONTH ACTION PLAN</div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.8;">${d.twelveMonthPlan}</div>
+      ${d.projectedIncomeIn12Months ? `<div style="margin-top:12px;background:rgba(255,255,255,0.6);border-radius:8px;padding:10px;text-align:center;"><div style="font-size:10px;color:var(--green-dk);font-weight:600;">PROJECTED INCOME IN 12 MONTHS</div><div style="font-size:24px;font-weight:800;color:var(--green-dk);">${DQ.fmt(d.projectedIncomeIn12Months)}/mo</div><div style="font-size:10px;color:var(--muted);">if top actions taken</div></div>` : ''}
+    </div>
+
+    <div class="card red" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:4px;">KEY RISK TO WATCH</div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.8;">${d.keyRisk}</div>
+    </div>
+
+    ${DQ.disclaimerHTML()}
+    <button class="btn ghost full" onclick="document.getElementById('deep-result').classList.add('hidden');document.getElementById('deep-content').classList.remove('hidden');">Re-run Audit</button>`;
+}
+
+async function runTaxAnalysis() {
+  const res = document.getElementById('tax-result');
+  res.classList.remove('hidden');
+  res.innerHTML = '<div class="loading-center"><div class="spinner" style="width:28px;height:28px;"></div><div class="loading-title">Analyzing dividend tax implications...</div></div>';
+
+  const context = buildContext();
+  try {
+    const json = await DQ.callClaude([{role:'user',content:context+' Run a DIVIDEND TAX INTELLIGENCE ANALYSIS. Respond with valid JSON only. Fields: qualifiedVsOrdinary(string), estimatedAnnualTax(string), irmaaRisk(string), rothConversionNote(string), accountPlacementTips(array of {holding,idealAccount,reason}), taxLossHarvesting(string), rmdNote(string), topTaxTip(string), disclaimer(string).'}], DQ.AI_SYSTEM, 1500);
+    const d = JSON.parse(json.replace(/```json|```/g,'').trim());
+    const sections = [
+      {icon:'&#128196;',title:'Qualified vs Ordinary Income',content:d.qualifiedVsOrdinary,color:'var(--blue)'},
+      {icon:'&#128200;',title:'Estimated Annual Tax',content:d.estimatedAnnualTax,color:'var(--amber)'},
+      {icon:'&#9889;',title:'Medicare IRMAA Surcharge Risk',content:d.irmaaRisk,color:'var(--red)'},
+      {icon:'&#127981;',title:'Roth Conversion Opportunity',content:d.rothConversionNote,color:'var(--purple)'},
+      {icon:'&#128337;',title:'RMD Considerations',content:d.rmdNote,color:'var(--navy)'},
+      {icon:'&#9988;',title:'Tax-Loss Harvesting',content:d.taxLossHarvesting,color:'var(--green)'},
+      {icon:'&#127942;',title:'Top Tax Move Right Now',content:d.topTaxTip,color:'var(--green)'},
+    ];
+    res.innerHTML = sections.map(s=>`<div class="card" style="margin-bottom:10px;border-left:3px solid ${s.color};"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-size:18px;">${s.icon}</span><div style="font-size:11px;font-weight:700;color:${s.color};">${s.title.toUpperCase()}</div></div><div style="font-size:12px;color:var(--navy);line-height:1.8;">${s.content||''}</div></div>`).join('')
+    + (d.accountPlacementTips && d.accountPlacementTips.length ? `<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px;">ACCOUNT PLACEMENT STRATEGY</div>${d.accountPlacementTips.map(t=>`<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;"><div style="font-size:13px;font-weight:800;color:var(--navy);">${t.holding}</div><span class="tag">${t.idealAccount}</span></div><div style="font-size:11px;color:var(--muted);line-height:1.5;">${t.reason}</div></div>`).join('')}</div>` : '')
+    + DQ.disclaimerHTML();
+  } catch(e) {
+    res.innerHTML = `<div class="card red"><div style="font-size:13px;color:var(--red);">Analysis failed: ${e.message}</div></div>`;
+  }
+}
+
+async function runSSStrategy() {
+  const res = document.getElementById('ss-result');
+  res.classList.remove('hidden');
+  res.innerHTML = '<div class="loading-center"><div class="spinner" style="width:28px;height:28px;"></div><div class="loading-title">Analyzing Social Security strategy...</div></div>';
+
+  const context = buildContext();
+  try {
+    const json = await DQ.callClaude([{role:'user',content:context+' Run a SOCIAL SECURITY OPTIMIZATION ANALYSIS. Respond with valid JSON only. Fields: currentPlan(string), claimAt62({monthlyBenefit,lifetimeImpact,prosCons}), claimAtFRA({monthlyBenefit,lifetimeImpact,prosCons}), claimAt70({monthlyBenefit,lifetimeImpact,prosCons}), breakEvenAge(string), recommendation(string), bridgeStrategy(string), colaImpact(string), portfolioInteraction(string), topInsight(string).'}], DQ.AI_SYSTEM, 1500);
+    const d = JSON.parse(json.replace(/```json|```/g,'').trim());
+    const opts = [{age:'62',data:d.claimAt62,c:'var(--red)'},{age:'FRA',data:d.claimAtFRA,c:'var(--amber)'},{age:'70',data:d.claimAt70,c:'var(--green)'}];
+    res.innerHTML = `
+      <div class="card amber" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:6px;">CURRENT PLAN ASSESSMENT</div><div style="font-size:12px;color:var(--navy);line-height:1.8;">${d.currentPlan}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+        ${opts.map(o=>!o.data?'':` <div style="background:${o.c}11;border:1.5px solid ${o.c}44;border-radius:12px;padding:12px;text-align:center;"><div style="font-size:10px;font-weight:700;color:${o.c};margin-bottom:4px;">Age ${o.age}</div><div style="font-size:15px;font-weight:800;color:var(--navy);margin-bottom:4px;">${o.data.monthlyBenefit||''}</div><div style="font-size:9px;color:var(--muted);line-height:1.4;">${o.data.prosCons||''}</div></div>`).join('')}
+      </div>
+      ${[
+        {icon:'&#9878;',t:'Break-Even Age',c:d.breakEvenAge,col:'var(--blue)'},
+        {icon:'&#127942;',t:'Recommendation for Your Situation',c:d.recommendation,col:'var(--green)'},
+        {icon:'&#128200;',t:'Bridge Strategy Using Dividends',c:d.bridgeStrategy,col:'var(--teal)'},
+        {icon:'&#128201;',t:'COLA Compounding Impact',c:d.colaImpact,col:'var(--amber)'},
+        {icon:'&#128272;',t:'How SS Interacts With Your Portfolio',c:d.portfolioInteraction,col:'var(--navy)'},
+        {icon:'&#128161;',t:'Top Insight',c:d.topInsight,col:'var(--purple)'},
+      ].map(s=>`<div class="card" style="margin-bottom:10px;border-left:3px solid ${s.col};"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-size:18px;">${s.icon}</span><div style="font-size:11px;font-weight:700;color:${s.col};">${s.t.toUpperCase()}</div></div><div style="font-size:12px;color:var(--navy);line-height:1.8;">${s.c||''}</div></div>`).join('')}
+      ${DQ.disclaimerHTML()}`;
+  } catch(e) {
+    res.innerHTML = `<div class="card red"><div style="font-size:13px;color:var(--red);">Analysis failed: ${e.message}</div></div>`;
+  }
+}
+</script>
+</body>
+</html>

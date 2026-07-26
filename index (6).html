@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>DividendIQ Pro -- Smart Investing. Stronger Retirement.</title>
+  <meta name="description" content="AI-powered retirement income advisor. Get your DividendIQ Retirement Score, live dividend stock analysis, 20-year income projections, and a broker-ready PDF report."/>
+  <meta property="og:title" content="DividendIQ Pro -- Smart Investing. Stronger Retirement."/>
+  <meta property="og:description" content="Get your free DividendIQ Retirement Score. AI-powered dividend stock analysis for retirement income investors."/>
+  <meta property="og:image" content="https://dividendiq.info/og-image.png"/>
+  <meta property="og:url" content="https://dividendiq.info/"/>
+  <meta name="theme-color" content="#0D2B5E"/>
+  <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96"/>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
+  <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<div id="nav-placeholder"></div>
+
+<!-- Hero -->
+<section class="landing-hero">
+  <div class="landing-badge">&#127942; Trusted by retirement income investors</div>
+  <h1 class="landing-title">
+    Smart Investing.<br><em>Stronger Retirement.</em>
+  </h1>
+  <p class="landing-sub">
+    Get your free DividendIQ Retirement Score. AI-powered dividend analysis, live market data, 20-year income projections, and a broker-ready PDF report. Built for investors aged 60-70.
+  </p>
+  <div class="landing-cta">
+    <a href="dashboard.html" class="btn green" style="font-size:15px;padding:14px 28px;">Get My Free Score</a>
+    <a href="learn.html" class="btn outline" style="border-color:rgba(255,255,255,0.4);color:white;background:rgba(255,255,255,0.1);font-size:15px;padding:14px 28px;">Learn Strategies</a>
+  </div>
+  <!-- Live score preview -->
+  <div id="score-preview" style="margin-top:28px;display:flex;justify-content:center;"></div>
+</section>
+
+<!-- Stats strip -->
+<div style="background:var(--navy);padding:16px 20px;">
+  <div class="stats-grid four" style="max-width:480px;margin:0 auto;gap:6px;">
+    <div class="stat-card" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.1);">
+      <div class="stat-label" style="color:rgba(255,255,255,0.5);">Avg yield</div>
+      <div class="stat-value" style="color:var(--green);font-size:18px;">6.2%</div>
+      <div class="stat-sub" style="color:rgba(255,255,255,0.4);">model portfolio</div>
+    </div>
+    <div class="stat-card" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.1);">
+      <div class="stat-label" style="color:rgba(255,255,255,0.5);">Income</div>
+      <div class="stat-value" style="color:var(--green);font-size:18px;">$2,842</div>
+      <div class="stat-sub" style="color:rgba(255,255,255,0.4);">per month</div>
+    </div>
+    <div class="stat-card" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.1);">
+      <div class="stat-label" style="color:rgba(255,255,255,0.5);">Strategies</div>
+      <div class="stat-value" style="color:white;font-size:18px;">10</div>
+      <div class="stat-sub" style="color:rgba(255,255,255,0.4);">updated Jul 2026</div>
+    </div>
+    <div class="stat-card" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.1);">
+      <div class="stat-label" style="color:rgba(255,255,255,0.5);">AI advisor</div>
+      <div class="stat-value" style="color:white;font-size:18px;">24/7</div>
+      <div class="stat-sub" style="color:rgba(255,255,255,0.4);">always on</div>
+    </div>
+  </div>
+</div>
+
+<!-- Features -->
+<div style="padding:24px 16px 0;max-width:480px;margin:0 auto;">
+  <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;color:var(--muted);text-align:center;text-transform:uppercase;margin-bottom:16px;">Everything you need for retirement income</div>
+</div>
+<div class="landing-features" style="max-width:480px;margin:0 auto;padding:0 16px 16px;">
+  <div class="feature-card">
+    <div class="feature-icon">&#127942;</div>
+    <div class="feature-title">Retirement Score</div>
+    <div class="feature-desc">8-dimension score that grades your income readiness from 0-100</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">&#129504;</div>
+    <div class="feature-title">AI Advisor</div>
+    <div class="feature-desc">CFP + CFA level AI that knows your portfolio and gives specific answers</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">&#128202;</div>
+    <div class="feature-title">Live Markets</div>
+    <div class="feature-desc">Sector heatmap, macro dashboard, earnings calendar, dividend screener</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">&#128200;</div>
+    <div class="feature-title">Income Calculator</div>
+    <div class="feature-desc">20-year projection, scenarios, reverse calculator, withdrawal analysis</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">&#127979;</div>
+    <div class="feature-title">10 Strategies</div>
+    <div class="feature-desc">Current market analysis for every income strategy updated July 2026</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">&#128196;</div>
+    <div class="feature-title">Tax Intelligence</div>
+    <div class="feature-desc">Qualified vs ordinary income, IRMAA risk, Roth conversion analysis</div>
+  </div>
+</div>
+
+<!-- Demo Score card -->
+<div style="padding:0 16px 24px;max-width:480px;margin:0 auto;">
+  <div class="card navy" style="text-align:center;padding:24px;">
+    <div style="font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:0.5px;margin-bottom:12px;">SAMPLE RETIREMENT SCORE</div>
+    <div id="demo-ring" style="display:flex;justify-content:center;margin-bottom:12px;"></div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:16px;line-height:1.6;">
+      Robert Anderson, age 64. $47,884 portfolio. $2,842/mo in dividend income.<br>
+      6.2% blended yield across 12 positions. 94% toward $3,000/mo goal.
+    </div>
+    <a href="dashboard.html" class="btn green full">Get My Retirement Score -- Free</a>
+  </div>
+</div>
+
+<!-- Strategy preview -->
+<div style="padding:0 16px 24px;max-width:480px;margin:0 auto;">
+  <div class="section-label">Current income strategies -- July 2026</div>
+  <div id="strategy-preview"></div>
+  <a href="learn.html" class="btn outline full" style="margin-top:8px;">View All 10 Strategies</a>
+</div>
+
+<!-- Pricing teaser -->
+<div style="background:var(--grad-blue);padding:32px 20px;text-align:center;margin-bottom:0;">
+  <div style="font-size:22px;font-weight:800;color:white;font-family:'Manrope',sans-serif;margin-bottom:8px;">Start free. Upgrade when ready.</div>
+  <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:20px;line-height:1.6;">
+    Free plan includes your Retirement Score, 5 AI questions/day, and access to all 10 strategies.
+    Pro unlocks unlimited AI, Deep Audit, Tax Intelligence, and SS Strategy.
+  </div>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+    <a href="dashboard.html" class="btn green" style="padding:12px 24px;">Start Free</a>
+    <a href="plans.html" class="btn" style="background:rgba(255,255,255,0.15);color:white;padding:12px 24px;border:1.5px solid rgba(255,255,255,0.3);">See Pro &mdash; $19/mo</a>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer style="background:var(--navy);padding:32px 20px;text-align:center;">
+  <div style="font-family:'Manrope',sans-serif;font-size:18px;font-weight:800;color:white;margin-bottom:12px;">
+    Dividend<span style="color:var(--green);">IQ</span> Pro
+  </div>
+  <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+    <a href="dashboard.html" style="font-size:12px;color:rgba(255,255,255,0.5);">Dashboard</a>
+    <a href="advisor.html"   style="font-size:12px;color:rgba(255,255,255,0.5);">AI Advisor</a>
+    <a href="markets.html"   style="font-size:12px;color:rgba(255,255,255,0.5);">Markets</a>
+    <a href="learn.html"     style="font-size:12px;color:rgba(255,255,255,0.5);">Learn</a>
+    <a href="plans.html"     style="font-size:12px;color:rgba(255,255,255,0.5);">Plans</a>
+    <a href="terms.html"     style="font-size:12px;color:rgba(255,255,255,0.5);">Terms</a>
+    <a href="privacy.html"   style="font-size:12px;color:rgba(255,255,255,0.5);">Privacy</a>
+  </div>
+  <div style="font-size:11px;color:rgba(255,255,255,0.3);line-height:1.8;">
+    &copy; 2026 DividendIQ.info &mdash; For informational purposes only. Not financial advice.<br>
+    <a href="mailto:support@dividendiq.info" style="color:rgba(255,255,255,0.4);">support@dividendiq.info</a>
+  </div>
+</footer>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const { buildNav, buildBottomNav, buildScoreRing, STRATEGIES, calcScore, calcPortfolio, MODEL_HOLDINGS, DEMO_PROFILE } = window.DQ;
+
+  // Nav
+  document.getElementById('nav-placeholder').appendChild(buildNav('Home'));
+  document.getElementById('bottom-nav-placeholder').appendChild(buildBottomNav('Home'));
+
+  // Score ring in hero
+  const { totalInc, blended } = calcPortfolio(MODEL_HOLDINGS);
+  const score = calcScore(DEMO_PROFILE, totalInc, blended, MODEL_HOLDINGS);
+  document.getElementById('demo-ring').innerHTML = buildScoreRing(score.overall, 120);
+
+  // Strategy preview (first 3)
+  const sp = document.getElementById('strategy-preview');
+  STRATEGIES.slice(0,3).forEach(s => {
+    sp.innerHTML += `
+      <a href="learn.html#${s.key}" style="text-decoration:none;">
+        <div class="strategy-card" style="border-left-color:${s.color};">
+          <div class="strategy-header">
+            <div class="strategy-icon">${s.icon}</div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <div class="strategy-title">${s.title}</div>
+                <span class="tag" style="background:${s.badgeColor}22;color:${s.badgeColor};border:1px solid ${s.badgeColor}44;">${s.badge}</span>
+              </div>
+              <div class="strategy-headline">${s.headline}</div>
+              <div class="strategy-pills">
+                <span class="tag green">${s.yield} yield</span>
+                <span class="tag">${s.payFreq}</span>
+                <span class="tag gray">Risk: ${s.risk}</span>
+              </div>
+            </div>
+            <div style="font-size:18px;color:var(--muted);">&#8250;</div>
+          </div>
+        </div>
+      </a>`;
+  });
+});
+</script>
+</body>
+</html>

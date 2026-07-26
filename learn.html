@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Learn -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="tab-bar" id="learn-tabs"></div>
+
+<div class="page">
+
+  <!-- STRATEGIES TAB -->
+  <div id="tab-strategies" class="page-content">
+    <div class="card navy" style="margin-bottom:14px;">
+      <div class="hero-label">CURRENT AS OF JULY 2026</div>
+      <div class="hero-title">10 Income Strategies for Retirement</div>
+      <div class="hero-sub">6 low-to-moderate and 4 medium-to-high risk strategies. Real yields, specific tickers, and current market analysis.</div>
+    </div>
+    <div id="strategy-list"></div>
+  </div>
+
+  <!-- STRATEGY DETAIL (hidden) -->
+  <div id="tab-strategy-detail" class="page-content hidden">
+    <button onclick="backToStrategies()" style="font-size:12px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0 0 12px;font-family:inherit;display:flex;align-items:center;gap:4px;">&#8249; Back to strategies</button>
+    <div id="strategy-detail-content"></div>
+  </div>
+
+  <!-- GLOSSARY TAB -->
+  <div id="tab-glossary" class="page-content hidden">
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px;">Dividend Income Glossary</div>
+    <div id="glossary-list"></div>
+  </div>
+
+  <!-- QUIZ TAB -->
+  <div id="tab-quiz" class="page-content hidden">
+    <div id="quiz-container"></div>
+  </div>
+
+  <div style="height:80px;"></div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="app.js"></script>
+<script>
+const DQ = window.DQ;
+let quizStep = 0, quizScore = 0, quizDone = false, selectedAns = null;
+
+const GLOSSARY = [
+  {t:'Dividend Yield',d:'Annual dividends per share divided by the stock price, expressed as a percentage. A $100 stock paying $4/year has a 4% yield.'},
+  {t:'Payout Ratio',d:'The percentage of earnings paid out as dividends. A 70% payout ratio means $0.70 of every $1.00 earned goes to shareholders. Above 85% is elevated risk.'},
+  {t:'DRIP',d:'Dividend Reinvestment Plan. Automatically reinvests your dividend payments into additional shares instead of cash, compounding your income over time.'},
+  {t:'BDC',d:'Business Development Company. A publicly traded company that lends money to mid-size private businesses and must pay 90%+ of income as dividends. Examples: ARCC, MAIN, FSK.'},
+  {t:'REIT',d:'Real Estate Investment Trust. Owns income-producing real estate and must distribute 90%+ of taxable income to shareholders. Examples: O (Realty Income), KBWY.'},
+  {t:'Covered Call',d:'An options strategy where you sell the right to buy a stock you already own. The premium collected becomes additional income. Used by JEPI and JEPQ.'},
+  {t:'NAV',d:'Net Asset Value. The total value of a fund\'s assets minus liabilities, divided by shares outstanding. When a CEF trades below NAV it is at a discount.'},
+  {t:'Coverage Ratio',d:'For BDCs: Net Investment Income divided by the dividend. A ratio above 1.0x means earnings cover the dividend with cushion. Below 1.0x is a warning sign.'},
+  {t:'mREIT',d:'Mortgage REIT. Borrows short-term to invest in long-term mortgage-backed securities, profiting on the spread. Highly sensitive to interest rate changes.'},
+  {t:'Dividend Aristocrat',d:'An S&P 500 company that has raised its dividend for 25 or more consecutive years. There are currently 67 Aristocrats including KO, JNJ, and PEP.'},
+  {t:'IRMAA',d:'Income-Related Monthly Adjustment Amount. A Medicare surcharge triggered when your income exceeds certain thresholds. High dividend income can push you into higher IRMAA brackets.'},
+  {t:'Qualified Dividend',d:'A dividend taxed at the lower capital gains rate (0%, 15%, or 20%) rather than ordinary income rates (up to 37%). Most stock dividends qualify; BDC and REIT distributions often do not.'},
+];
+
+const QUIZ = [
+  {q:'What does a 9% dividend yield mean?', opts:['The stock price increased 9% this year','The annual dividend payment is 9% of the share price','The company grew earnings by 9%','The payout ratio is 9%'], a:1, exp:'Yield = annual dividend / share price. A $50 stock paying $4.50/year yields 9%.'},
+  {q:'Which metric best indicates dividend safety for a BDC?', opts:['Stock price momentum','Coverage ratio (NII / dividend)','Market capitalization','Trading volume'], a:1, exp:'Coverage ratio measures whether the BDC earns enough (NII) to cover its dividend. Above 1.0x is healthy.'},
+  {q:'What is the main advantage of a covered call ETF like JEPI?', opts:['Unlimited upside participation','Monthly income from option premiums','Zero risk to principal','Guaranteed dividend growth'], a:1, exp:'JEPI generates income by selling call options on S&P 500 stocks it owns. The premium is paid monthly to shareholders.'},
+  {q:'Which of these would be MOST concerning for a dividend investor?', opts:['A 70% payout ratio','A payout ratio of 115%','Quarterly dividend payments','A yield of 4%'], a:1, exp:'A payout ratio above 100% means the company is paying out more than it earns. This is unsustainable and often precedes a dividend cut.'},
+  {q:'What is the "4% rule" in retirement planning?', opts:['Invest 4% of income each month','Withdraw 4% of your portfolio per year','Keep 4% in cash','Target a 4% dividend yield'], a:1, exp:'The 4% rule suggests you can withdraw 4% of your portfolio annually and not run out of money over 30 years. Dividend income strategies aim to live off income without touching principal.'},
+];
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav('Learn'));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav('Learn'));
+  buildTabs();
+  buildStrategies();
+  buildGlossary();
+  buildQuiz();
+
+  if (window.location.hash) {
+    const key = window.location.hash.slice(1);
+    const s = DQ.STRATEGIES.find(s => s.key === key);
+    if (s) showStrategyDetail(s);
+  }
+});
+
+function buildTabs() {
+  const tabs = [{id:'strategies',label:'Strategies'},{id:'glossary',label:'Glossary'},{id:'quiz',label:'Quiz'}];
+  const bar = document.getElementById('learn-tabs');
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id==='strategies'?' active':'');
+    btn.textContent = t.label;
+    btn.onclick = () => switchTab(t.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchTab(id) {
+  ['strategies','strategy-detail','glossary','quiz'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== id);
+  });
+  document.querySelectorAll('.tab-btn').forEach((btn,i) => {
+    btn.classList.toggle('active', ['strategies','glossary','quiz'][i] === id);
+  });
+}
+
+function buildStrategies() {
+  const list = document.getElementById('strategy-list');
+  const riskLabels = ['','Low','Low-Med','Medium','Med-High','High'];
+  DQ.STRATEGIES.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'strategy-card';
+    div.style.borderLeftColor = s.color;
+    div.innerHTML = `
+      <div class="strategy-header">
+        <div class="strategy-icon">${s.icon}</div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+            <div class="strategy-title">${s.title}</div>
+            <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:var(--r-full);background:${s.badgeColor}22;color:${s.badgeColor};border:1px solid ${s.badgeColor}44;">${s.badge}</span>
+          </div>
+          <div class="strategy-headline">${s.headline}</div>
+          <div class="strategy-pills">
+            <span class="tag green">${s.yield} yield</span>
+            <span class="tag">${s.payFreq}</span>
+            <span class="tag gray">Risk: ${s.risk}</span>
+          </div>
+          <div class="strategy-tickers">
+            ${s.tickers.slice(0,5).map(t=>`<span class="ticker-pill" style="background:${s.bg};color:${s.color};border-color:${s.color}33;">${t}</span>`).join('')}
+          </div>
+        </div>
+        <div style="font-size:18px;color:var(--muted);">&#8250;</div>
+      </div>`;
+    div.onclick = () => showStrategyDetail(s);
+    list.appendChild(div);
+  });
+}
+
+function showStrategyDetail(s) {
+  document.getElementById('tab-strategies').classList.add('hidden');
+  document.getElementById('tab-strategy-detail').classList.remove('hidden');
+  document.getElementById('tab-glossary').classList.add('hidden');
+  document.getElementById('tab-quiz').classList.add('hidden');
+
+  const content = document.getElementById('strategy-detail-content');
+  content.innerHTML = `
+    <div class="card navy" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <span style="font-size:32px;">${s.icon}</span>
+        <div>
+          <span style="font-size:9px;font-weight:700;padding:2px 10px;border-radius:var(--r-full);background:${s.badgeColor}33;color:${s.badgeColor};border:1px solid ${s.badgeColor}55;display:inline-block;margin-bottom:4px;">${s.badge}</span>
+          <div class="hero-title" style="font-size:17px;">${s.title}</div>
+        </div>
+      </div>
+      <div class="hero-sub">${s.headline}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+        ${[{l:'Yield',v:s.yield,c:'#4ade80'},{l:'Frequency',v:s.payFreq,c:'rgba(255,255,255,0.8)'},{l:'Risk',v:s.risk,c:'rgba(255,255,255,0.8)'}].map(m=>`<div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:8px;color:rgba(255,255,255,0.45);">${m.l.toUpperCase()}</div><div style="font-size:11px;font-weight:700;color:${m.c};margin-top:2px;">${m.v}</div></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px;">KEY TICKERS</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${s.tickers.map(t=>`<span style="font-size:13px;font-weight:800;padding:6px 14px;border-radius:8px;background:${s.bg};color:${s.color};border:1px solid ${s.color}44;">${t}</span>`).join('')}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;background:${s.bg};border:1px solid ${s.color}33;">
+      <div style="font-size:11px;font-weight:700;color:${s.color};margin-bottom:6px;">WHY THIS STRATEGY WORKS</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.8;">${s.why}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="card" style="padding:12px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px;">Strengths</div>
+        ${s.pros.map(p=>`<div style="font-size:11px;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;">+ ${p}</div>`).join('')}
+      </div>
+      <div class="card" style="padding:12px;">
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px;">Watch out</div>
+        ${s.cons.map(c=>`<div style="font-size:11px;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border);line-height:1.5;">- ${c}</div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card blue" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-size:16px;">&#128225;</span><div style="font-size:11px;font-weight:700;color:var(--blue);">CURRENT MARKET STATE -- JULY 2026</div></div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.8;">${s.currentState}</div>
+    </div>
+
+    <div class="card green" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--green-dk);margin-bottom:6px;">ALLOCATION GUIDE</div>
+      <div style="font-size:12px;color:var(--navy);line-height:1.8;">${s.allocation}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:4px;">BEST FOR</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;">${s.bestFor}</div>
+      <div class="divider"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;">TOP PICK</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.7;">${s.topPick}</div>
+    </div>
+
+    ${DQ.disclaimerHTML()}
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">Data sourced from Kiplinger, 24/7 Wall St., Seeking Alpha, Motley Fool (July 2026).</div>
+    <div style="height:80px;"></div>`;
+}
+
+function backToStrategies() {
+  document.getElementById('tab-strategy-detail').classList.add('hidden');
+  document.getElementById('tab-strategies').classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach((btn,i) => btn.classList.toggle('active', i===0));
+}
+
+function buildGlossary() {
+  const el = document.getElementById('glossary-list');
+  GLOSSARY.forEach(g => {
+    el.innerHTML += `<div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:4px;">${g.t}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.65;">${g.d}</div>
+    </div>`;
+  });
+}
+
+function buildQuiz() { renderQuiz(); }
+
+function renderQuiz() {
+  const el = document.getElementById('quiz-container');
+  if (quizDone) {
+    el.innerHTML = `
+      <div class="card text-center" style="margin-top:20px;">
+        <div style="font-size:48px;margin-bottom:10px;">${quizScore>=4?'&#127942;':quizScore>=3?'&#127919;':'&#128214;'}</div>
+        <div style="font-size:20px;font-weight:800;color:var(--navy);margin-bottom:8px;">${quizScore}/${QUIZ.length} correct</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7;">${quizScore===5?'Perfect! You are retirement income ready.':quizScore>=3?'Good -- review the glossary to fill any gaps.':'Check the strategies and glossary -- great learning opportunity!'}</div>
+        <button class="btn primary full" onclick="restartQuiz()">Retake Quiz</button>
+      </div>`;
+    return;
+  }
+
+  const q = QUIZ[quizStep];
+  el.innerHTML = `
+    <div class="card" style="margin-top:16px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Question ${quizStep+1} of ${QUIZ.length}</div>
+      <div style="height:4px;background:var(--border);border-radius:2px;margin-bottom:16px;overflow:hidden;">
+        <div style="width:${(quizStep/QUIZ.length)*100}%;height:4px;background:var(--blue);border-radius:2px;"></div>
+      </div>
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:16px;line-height:1.5;">${q.q}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="quiz-opts"></div>
+      <div id="quiz-explain" class="hidden" style="margin-top:12px;padding:10px;background:var(--blue-lt);border-radius:8px;font-size:12px;color:var(--blue);line-height:1.6;"></div>
+    </div>`;
+
+  const optsEl = document.getElementById('quiz-opts');
+  q.opts.forEach((o, i) => {
+    const btn = document.createElement('div');
+    btn.style.cssText = 'padding:11px 14px;border-radius:8px;border:1.5px solid var(--border);font-size:13px;cursor:pointer;line-height:1.5;transition:all 0.15s;';
+    btn.textContent = o;
+    btn.onclick = () => {
+      if (selectedAns !== null) return;
+      selectedAns = i;
+      const correct = i === q.a;
+      if (correct) quizScore++;
+      optsEl.querySelectorAll('div').forEach((b, j) => {
+        if (j === q.a) { b.style.borderColor='var(--green)';b.style.background='var(--green-lt)';b.style.color='var(--green)'; }
+        else if (j === i && !correct) { b.style.borderColor='var(--red)';b.style.background='var(--red-lt)';b.style.color='var(--red)'; }
+        b.style.cursor = 'default';
+      });
+      document.getElementById('quiz-explain').textContent = q.exp;
+      document.getElementById('quiz-explain').classList.remove('hidden');
+      setTimeout(() => {
+        selectedAns = null;
+        if (quizStep < QUIZ.length - 1) { quizStep++; renderQuiz(); }
+        else { quizDone = true; renderQuiz(); }
+      }, 1500);
+    };
+    optsEl.appendChild(btn);
+  });
+}
+
+function restartQuiz() { quizStep=0; quizScore=0; quizDone=false; selectedAns=null; renderQuiz(); }
+</script>
+</body>
+</html>
