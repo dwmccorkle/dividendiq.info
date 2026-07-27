@@ -251,16 +251,9 @@ function buildNav(activePage) {
   const nav = document.createElement('nav');
   nav.className = 'nav';
   nav.innerHTML = `
-    <a href="index.html" class="nav-logo">
-      <div class="nav-logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <rect x="2" y="14" width="4" height="8" rx="1" fill="#1B75BC"/>
-          <rect x="8" y="10" width="4" height="12" rx="1" fill="#00A89D"/>
-          <rect x="14" y="5" width="4" height="17" rx="1" fill="#3AAA35"/>
-          <path d="M14 3 Q20 3 20 9" stroke="#3AAA35" stroke-width="2" stroke-linecap="round" fill="none"/>
-        </svg>
-      </div>
-      Dividend<span>IQ</span>
+    <a href="index.html" class="nav-logo" style="gap:0;">
+      <img src="./logo-square.png" alt="DividendIQ" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;"/>
+      <span style="margin-left:8px;">Dividend<span style="color:var(--green);">IQ</span></span>
     </a>
     <div class="nav-links">
       ${pages.map(p => `<a href="${p.href}" class="nav-link${p.label === activePage ? ' active' : ''}">${p.label}</a>`).join('')}
