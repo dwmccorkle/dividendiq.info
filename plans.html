@@ -4,8 +4,14 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Plans -- DividendIQ Pro</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-  <link rel="stylesheet" href="styles.css"/>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    /* System font fallback if Google Fonts fails to load */
+    :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  </style>
 </head>
 <body>
 <div id="nav-placeholder"></div>
@@ -97,7 +103,7 @@
 
 <div id="bottom-nav-placeholder"></div>
 
-<script src="app.js"></script>
+<script src="./app.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('nav-placeholder').appendChild(window.DQ.buildNav(''));
