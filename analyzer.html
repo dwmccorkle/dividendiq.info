@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Analyzer -- DividendIQ Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>:root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}</style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="tab-bar" id="analyze-tabs" style="display:none;"></div>
+
+<div class="page">
+  <div class="page-content">
+
+    <!-- Search bar -->
+    <div class="card" style="margin-top:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px;">Stock Research Tool</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="ticker-input" class="input" placeholder="Enter ticker (e.g. ARCC, JEPI, O)" maxlength="8" style="flex:1;text-transform:uppercase;"/>
+        <button class="btn primary" onclick="analyzeTicker()" style="flex-shrink:0;">Analyze</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;">
+        <div style="font-size:10px;color:var(--muted);width:100%;margin-bottom:2px;">Popular picks:</div>
+        <button class="quick-prompt" onclick="quickAnalyze('SCHD')">SCHD</button>
+        <button class="quick-prompt" onclick="quickAnalyze('JEPI')">JEPI</button>
+        <button class="quick-prompt" onclick="quickAnalyze('O')">O</button>
+        <button class="quick-prompt" onclick="quickAnalyze('ARCC')">ARCC</button>
+        <button class="quick-prompt" onclick="quickAnalyze('MAIN')">MAIN</button>
+        <button class="quick-prompt" onclick="quickAnalyze('CVX')">CVX</button>
+        <button class="quick-prompt" onclick="quickAnalyze('T')">T</button>
+        <button class="quick-prompt" onclick="quickAnalyze('AGNC')">AGNC</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results-placeholder" style="margin-top:12px;">
+      <div class="card" style="text-align:center;padding:32px;">
+        <div style="font-size:32px;margin-bottom:10px;">&#128269;</div>
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px;">Research any dividend stock</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;">Enter a ticker above to get AI analysis, dividend history, recent news, and how it fits your retirement income portfolio.</div>
+      </div>
+    </div>
+
+    <div id="analyzer-content" class="hidden">
+      <!-- Stock header -->
+      <div class="card navy" id="stock-header" style="margin-bottom:12px;"></div>
+
+      <!-- Tab content -->
+      <div id="tab-analysis"     class="hidden"></div>
+      <div id="tab-divhistory"   class="hidden"></div>
+      <div id="tab-news"         class="hidden"></div>
+      <div id="tab-compare"      class="hidden"></div>
+    </div>
+
+    <div id="disclaimer-el"></div>
+    <div style="height:80px;"></div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="./app.js"></script>
+<script>
+const DQ = window.DQ;
+let currentTicker = '';
+let currentTab = 'analysis';
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav(''));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav(''));
+  document.getElementById('ticker-input').addEventListener('keydown', e => { if(e.key==='Enter') analyzeTicker(); });
+  document.getElementById('ticker-input').addEventListener('input', e => e.target.value = e.target.value.toUpperCase());
+  document.getElementById('disclaimer-el').innerHTML = DQ.disclaimerHTML();
+  buildAnalyzeTabs();
+
+  // Check URL param
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('ticker')) {
+    document.getElementById('ticker-input').value = params.get('ticker').toUpperCase();
+    analyzeTicker();
+  }
+});
+
+function buildAnalyzeTabs() {
+  const tabs = [{id:'analysis',label:'Analysis'},{id:'divhistory',label:'Div History'},{id:'news',label:'News'},{id:'compare',label:'Compare'}];
+  const bar = document.getElementById('analyze-tabs');
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id==='analysis'?' active':'');
+    btn.textContent = t.label;
+    btn.id = 'tab-btn-' + t.id;
+    btn.onclick = () => switchAnalyzeTab(t.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchAnalyzeTab(id) {
+  ['analysis','divhistory','news','compare'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== id);
+    document.getElementById('tab-btn-'+t).classList.toggle('active', t === id);
+  });
+  currentTab = id;
+  if (id === 'news' && !document.getElementById('tab-news').dataset.loaded) loadNews();
+  if (id === 'divhistory' && !document.getElementById('tab-divhistory').dataset.loaded) loadDivHistory();
+}
+
+async function quickAnalyze(ticker) {
+  document.getElementById('ticker-input').value = ticker;
+  await analyzeTicker();
+}
+
+async function analyzeTicker() {
+  const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+  if (!ticker) return;
+  currentTicker = ticker;
+
+  document.getElementById('results-placeholder').classList.add('hidden');
+  document.getElementById('analyzer-content').classList.remove('hidden');
+  document.getElementById('analyze-tabs').style.display = 'flex';
+
+  // Reset tabs
+  ['analysis','divhistory','news','compare'].forEach(t => {
+    document.getElementById('tab-'+t).dataset.loaded = '';
+    document.getElementById('tab-'+t).innerHTML = '';
+  });
+  switchAnalyzeTab('analysis');
+
+  // Fetch quote
+  const q = await DQ.fetchQuote(ticker);
+  renderStockHeader(ticker, q);
+  loadAnalysis(ticker, q);
+}
+
+function renderStockHeader(ticker, q) {
+  const el = document.getElementById('stock-header');
+  const pctColor = (q.pct||0) >= 0 ? '#4ade80' : '#fca5a5';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;color:white;">${ticker}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);">Last updated: ${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div style="text-align:right;">
+        ${q.ok && q.price ? `
+          <div style="font-size:28px;font-weight:800;color:white;">$${DQ.sfx(q.price,2)}</div>
+          <div style="font-size:13px;font-weight:700;color:${pctColor};">${q.pct>=0?'+':''}${DQ.sfx(q.pct,2)}% today</div>
+        ` : '<div style="font-size:14px;color:rgba(255,255,255,0.5);">Price unavailable</div>'}
+      </div>
+    </div>`;
+}
+
+async function loadAnalysis(ticker, q) {
+  const el = document.getElementById('tab-analysis');
+  el.innerHTML = '<div class="loading-center"><div class="spinner" style="width:28px;height:28px;"></div><div class="loading-title">Analyzing ' + ticker + '...</div></div>';
+  el.dataset.loaded = '1';
+
+  const profile = DQ.State.profile();
+  const holdings = DQ.State.holdings();
+  const { totalInc, blended } = DQ.calcPortfolio(holdings);
+
+  try {
+    const reply = await DQ.callClaude([{role:'user', content:
+      `Deep analysis of ${ticker} for retirement income. Price: $${DQ.sfx(q.price||0,2)}.
+      Investor: ${profile.name}, age ${profile.age}, retiring ${profile.ret_age}, goal $${profile.income_goal}/mo.
+      Current portfolio income: $${Math.round(totalInc)}/mo at ${DQ.sfx(blended,1)}% blended yield. Risk: ${profile.risk}.
+      
+      Provide a structured analysis covering:
+      1. VERDICT (Buy/Hold/Avoid for this specific investor + one sentence why)
+      2. DIVIDEND PROFILE (yield, payment frequency, growth trend, payout ratio safety)
+      3. INCOME SLEEVE FIT (which sleeve this belongs in and what % allocation makes sense)
+      4. PROS (3 specific strengths relevant to retirement income)
+      5. CONS (3 specific risks or weaknesses to watch)
+      6. CURRENT MARKET STATE (July 2026 context for this security)
+      7. ACTION (specific recommendation: how many shares to buy at current price to add $X/mo income)
+      
+      End with: For informational purposes only -- not personalized financial advice.`
+    }], DQ.AI_SYSTEM, 800);
+
+    el.innerHTML = `
+      <div class="card" style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">AI ANALYSIS -- ${ticker}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.85;white-space:pre-wrap;">${reply}</div>
+      </div>
+      <button class="btn ghost full" style="margin-top:8px;" onclick="document.getElementById('watch-add-btn').click()">+ Add to Watchlist</button>
+      <button id="watch-add-btn" class="hidden" onclick="addToWatchlistFromAnalyzer()"></button>`;
+  } catch(e) {
+    el.innerHTML = `<div class="card red" style="margin-top:12px;"><div style="font-size:13px;color:var(--red);">Analysis failed: ${e.message}</div></div>`;
+  }
+}
+
+async function loadDivHistory() {
+  const el = document.getElementById('tab-divhistory');
+  el.innerHTML = '<div class="loading-center"><div class="spinner" style="width:24px;height:24px;"></div><div class="loading-title" style="font-size:13px;">Loading dividend history...</div></div>';
+  el.dataset.loaded = '1';
+
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/stock/dividend?symbol=${currentTicker}&token=${DQ.CONFIG.FINNHUB_KEY}`);
+    const data = await r.json();
+    const divs = (Array.isArray(data) ? data : []).filter(d => d.amount > 0).sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,20);
+
+    if (!divs.length) { el.innerHTML = '<div class="card" style="margin-top:12px;text-align:center;"><div style="font-size:13px;color:var(--muted);">No dividend history found for ' + currentTicker + '. This may be a non-dividend-paying security.</div></div>'; return; }
+
+    // Build bar chart
+    const maxAmt = Math.max(...divs.map(d=>d.amount));
+    const recentYrs = [...new Set(divs.map(d=>d.date?.slice(0,4)))].slice(0,4);
+
+    el.innerHTML = `
+      <div class="card" style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Dividend Payment History</div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:70px;margin-bottom:8px;">
+          ${divs.slice(0,16).reverse().map(d => {
+            const h = Math.max((d.amount/maxAmt)*100, 8);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;height:100%;justify-content:flex-end;" title="$${d.amount} on ${d.date}">
+              <div style="width:100%;background:var(--blue);border-radius:2px 2px 0 0;height:${h}%;opacity:0.85;"></div>
+              <div style="font-size:6px;color:var(--muted);transform:rotate(-45deg);white-space:nowrap;">${d.date?.slice(5)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="table-wrap" style="margin-top:12px;">
+          <table>
+            <thead><tr><th style="text-align:left;">Date</th><th>Amount</th><th>Annual rate</th><th>Type</th></tr></thead>
+            <tbody>${divs.slice(0,10).map(d=>`<tr>
+              <td style="text-align:left;">${d.date}</td>
+              <td>$${DQ.sfx(d.amount,4)}</td>
+              <td>$${DQ.sfx(d.amount*4,2)}/yr est.</td>
+              <td><span class="tag">${d.payDate?'Regular':'-'}</span></td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="card red" style="margin-top:12px;"><div style="font-size:13px;color:var(--red);">Failed to load: ${e.message}</div></div>`;
+  }
+}
+
+async function loadNews() {
+  const el = document.getElementById('tab-news');
+  el.innerHTML = '<div class="loading-center"><div class="spinner" style="width:24px;height:24px;"></div><div class="loading-title" style="font-size:13px;">Loading news...</div></div>';
+  el.dataset.loaded = '1';
+
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const from  = new Date(Date.now()-30*24*60*60*1000).toISOString().slice(0,10);
+    const r = await fetch(`https://finnhub.io/api/v1/company-news?symbol=${currentTicker}&from=${from}&to=${today}&token=${DQ.CONFIG.FINNHUB_KEY}`);
+    const data = await r.json();
+    const news = (Array.isArray(data)?data:[]).slice(0,12);
+
+    if (!news.length) { el.innerHTML = '<div class="card" style="margin-top:12px;text-align:center;"><div style="font-size:13px;color:var(--muted);">No recent news found for ' + currentTicker + '.</div></div>'; return; }
+
+    el.innerHTML = '<div style="margin-top:12px;">' + news.map(n=>`
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+          <span class="tag">${n.source}</span>
+          <span style="font-size:10px;color:var(--muted);margin-left:auto;">${new Date(n.datetime*1000).toLocaleDateString()}</span>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.4;margin-bottom:5px;">${n.headline}</div>
+        ${n.summary?`<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:6px;">${n.summary.slice(0,200)}...</div>`:''}
+        ${n.url?`<a href="${n.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:700;color:var(--blue);">Read more</a>`:''}
+      </div>`).join('') + '</div>';
+  } catch(e) {
+    el.innerHTML = `<div class="card red" style="margin-top:12px;"><div style="font-size:13px;color:var(--red);">Failed to load: ${e.message}</div></div>`;
+  }
+}
+
+function addToWatchlistFromAnalyzer() {
+  const watchlist = DQ.State.get('watchlist', []);
+  if (!watchlist.find(w => w.ticker === currentTicker)) {
+    watchlist.push({ ticker: currentTicker, note: 'Added from analyzer' });
+    DQ.State.set('watchlist', watchlist);
+    DQ.showToast(currentTicker + ' added to watchlist');
+  } else {
+    DQ.showToast(currentTicker + ' already in watchlist', 'error');
+  }
+}
+</script>
+</body>
+</html>

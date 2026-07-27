@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>All Features -- DividendIQ Pro</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>:root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}</style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="page">
+  <div class="page-content" style="padding-top:20px;">
+    <div style="font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;">All Features</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Everything DividendIQ Pro has to offer</div>
+
+    <div class="section-label">Core tools</div>
+    <div class="landing-features" style="padding:0;margin-bottom:20px;">
+      <a href="dashboard.html" style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#127942;</div><div class="feature-title">Retirement Score</div><div class="feature-desc">Your 8-dimension income readiness score</div></div></a>
+      <a href="advisor.html"   style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#129504;</div><div class="feature-title">AI Advisor</div><div class="feature-desc">Chat, Deep Audit, Tax Intel, SS Strategy</div></div></a>
+      <a href="calculator.html"style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128200;</div><div class="feature-title">Calculator</div><div class="feature-desc">Projection, Scenarios, Reverse, Withdrawal</div></div></a>
+      <a href="markets.html"   style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128202;</div><div class="feature-title">Markets Hub</div><div class="feature-desc">News, Sectors, Macro, Screener, Earnings</div></div></a>
+      <a href="portfolio.html" style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128188;</div><div class="feature-title">Portfolio</div><div class="feature-desc">Track holdings with live Finnhub prices</div></div></a>
+      <a href="charts.html"    style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128201;</div><div class="feature-title">Charts</div><div class="feature-desc">Income growth, allocation, yield analysis</div></div></a>
+      <a href="watchlist.html" style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#11088;</div><div class="feature-title">Watchlist</div><div class="feature-desc">Track stocks with live prices and AI analysis</div></div></a>
+      <a href="analyzer.html"  style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128269;</div><div class="feature-title">Analyzer</div><div class="feature-desc">Deep dive on any dividend stock</div></div></a>
+      <a href="alerts.html"    style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#128276;</div><div class="feature-title">Alerts</div><div class="feature-desc">9 alert types for income protection</div></div></a>
+      <a href="learn.html"     style="text-decoration:none;"><div class="feature-card"><div class="feature-icon">&#127979;</div><div class="feature-title">Learn</div><div class="feature-desc">10 strategies, glossary, quiz</div></div></a>
+    </div>
+
+    <div class="section-label">Account</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;">
+      <a href="plans.html"   class="btn outline full">View Plans &amp; Pricing</a>
+      <a href="terms.html"   class="btn ghost full">Terms of Service</a>
+      <a href="privacy.html" class="btn ghost full">Privacy Policy</a>
+    </div>
+    <div style="height:80px;"></div>
+  </div>
+</div>
+<div id="bottom-nav-placeholder"></div>
+<script src="./app.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  document.getElementById('nav-placeholder').appendChild(window.DQ.buildNav(''));
+  document.getElementById('bottom-nav-placeholder').appendChild(window.DQ.buildBottomNav(''));
+});
+</script>
+</body>
+</html>

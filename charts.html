@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Charts -- DividendIQ Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>:root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}</style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="tab-bar" id="chart-tabs"></div>
+
+<div class="page">
+  <div class="page-content">
+    <div id="tab-income"     style="margin-top:12px;"></div>
+    <div id="tab-allocation" style="margin-top:12px;" class="hidden"></div>
+    <div id="tab-yield"      style="margin-top:12px;" class="hidden"></div>
+    <div id="tab-dividend"   style="margin-top:12px;" class="hidden"></div>
+    <div id="disclaimer-el"></div>
+    <div style="height:80px;"></div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="./app.js"></script>
+<script>
+const DQ = window.DQ;
+const profile  = DQ.State.profile();
+const holdings = DQ.State.holdings();
+const { totalVal, totalInc, blended } = DQ.calcPortfolio(holdings);
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav(''));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav(''));
+  document.getElementById('disclaimer-el').innerHTML = DQ.disclaimerHTML();
+  buildTabs();
+  renderIncomeChart();
+  renderAllocationChart();
+  renderYieldChart();
+  renderDividendChart();
+});
+
+function buildTabs() {
+  const tabs = [{id:'income',label:'Income Growth'},{id:'allocation',label:'Allocation'},{id:'yield',label:'Yield Analysis'},{id:'dividend',label:'Dividend Map'}];
+  const bar = document.getElementById('chart-tabs');
+  tabs.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id==='income'?' active':'');
+    btn.textContent = t.label;
+    btn.onclick = () => {
+      ['income','allocation','yield','dividend'].forEach(id => {
+        document.getElementById('tab-'+id).classList.toggle('hidden', id !== t.id);
+      });
+      bar.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    };
+    bar.appendChild(btn);
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function svgChart(opts) {
+  const {W=320, H=200, PAD=40, data, lines, bars, goal, title, subtitle, xLabels, yFormat} = opts;
+  const innerW = W - PAD*2, innerH = H - PAD*2 - 20;
+  const allVals = (data||[]).concat(...(lines||[]).map(l=>l.data||[])).concat((bars||[]).map(b=>b.v));
+  const maxV = Math.max(...allVals.filter(Boolean), goal||0) * 1.1 || 1;
+  const minV = 0;
+  const range = maxV - minV;
+  const toX = (i, total) => PAD + (i/(total-1)) * innerW;
+  const toY = (v) => PAD + innerH - ((v-minV)/range)*innerH;
+  const fmt = yFormat || (v => v >= 1000 ? '$'+(v/1000).toFixed(0)+'K' : '$'+Math.round(v));
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;font-family:-apple-system,sans-serif;">`;
+
+  // Grid lines
+  [0,0.25,0.5,0.75,1].forEach(p => {
+    const y = PAD + innerH*(1-p);
+    const v = minV + range*p;
+    svg += `<line x1="${PAD}" y1="${y}" x2="${PAD+innerW}" y2="${y}" stroke="#E2E8F0" stroke-width="1"/>`;
+    svg += `<text x="${PAD-4}" y="${y+4}" text-anchor="end" font-size="9" fill="#94A3B8">${fmt(v)}</text>`;
+  });
+
+  // Goal line
+  if (goal) {
+    const gy = toY(goal);
+    svg += `<line x1="${PAD}" y1="${gy}" x2="${PAD+innerW}" y2="${gy}" stroke="#3AAA35" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+    svg += `<text x="${PAD+innerW-2}" y="${gy-4}" text-anchor="end" font-size="9" fill="#3AAA35">Goal ${fmt(goal)}</text>`;
+  }
+
+  // Bars
+  if (bars && bars.length) {
+    const bw = Math.max(4, innerW/bars.length*0.7);
+    bars.forEach((b,i) => {
+      const x = PAD + (i/bars.length)*innerW + (innerW/bars.length - bw)/2;
+      const bh = ((b.v-minV)/range)*innerH;
+      const y  = PAD + innerH - bh;
+      svg += `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="2" fill="${b.color||'#1B75BC'}" opacity="0.85"/>`;
+    });
+  }
+
+  // Lines
+  (lines||[]).forEach(l => {
+    if (!l.data || l.data.length < 2) return;
+    const pts = l.data.map((v,i)=>`${toX(i,l.data.length)},${toY(v)}`).join(' ');
+    // Fill area
+    if (l.fill) {
+      const area = `${toX(0,l.data.length)},${toY(minV)} ` + pts + ` ${toX(l.data.length-1,l.data.length)},${toY(minV)}`;
+      svg += `<polygon points="${area}" fill="${l.color}" opacity="0.08"/>`;
+    }
+    svg += `<polyline points="${pts}" fill="none" stroke="${l.color||'#1B75BC'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  });
+
+  // X labels
+  if (xLabels) {
+    const step = Math.max(1, Math.floor(xLabels.length/6));
+    xLabels.forEach((lbl,i) => {
+      if (i % step !== 0 && i !== xLabels.length-1) return;
+      const x = toX(i, xLabels.length);
+      svg += `<text x="${x}" y="${PAD+innerH+14}" text-anchor="middle" font-size="9" fill="#94A3B8">${lbl}</text>`;
+    });
+  }
+
+  // Title
+  if (title) svg += `<text x="${W/2}" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="#0D2B5E">${title}</text>`;
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ── TAB 1: Income Growth ──────────────────────────────────────────────────────
+function renderIncomeChart() {
+  const el = document.getElementById('tab-income');
+  const rows  = DQ.projectIncome({portfolio:profile.portfolio||47884, monthly:profile.monthly||100, ssIncome:profile.ss_income||1800, ssAge:profile.ss_age||66, currentAge:profile.age||64, returnRate:9, yieldRate:blended*100||6.2, drip:true, otherIncome:0, inflation:3, ssGrowth:2.5, years:20});
+  const goal  = profile.income_goal || 3000;
+  const divData = rows.map(r=>r.divMo);
+  const totData = rows.map(r=>r.totalMo);
+  const realData= rows.map(r=>r.realMo);
+  const ages    = rows.map(r=>'Age '+r.age);
+  const breakEven = rows.find(r=>r.totalMo>=goal);
+
+  el.innerHTML = `
+    <div class="card navy" style="margin-bottom:12px;">
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;">20-YEAR INCOME PROJECTION</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);">TODAY</div><div style="font-size:18px;font-weight:800;color:#4ade80;">${DQ.fmt(Math.round(totalInc))}/mo</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);">YEAR 10</div><div style="font-size:18px;font-weight:800;color:white;">${DQ.fmt(rows[9]?.totalMo||0)}/mo</div></div>
+        <div><div style="font-size:9px;color:rgba(255,255,255,0.4);">GOAL HIT</div><div style="font-size:18px;font-weight:800;color:${breakEven?'#4ade80':'#fca5a5'};">${breakEven?'Age '+breakEven.age:'20yr+'}</div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px;">Total monthly income growth</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">Dividends + Social Security (blue) vs inflation-adjusted (amber) vs goal (green dashed)</div>
+      ${svgChart({W:320,H:180,PAD:38,goal,xLabels:ages,
+        lines:[
+          {data:realData, color:'#D97706', fill:false},
+          {data:totData,  color:'#1B75BC', fill:true},
+        ],
+        yFormat:v=>'$'+Math.round(v/1000*10)/10+'K'
+      })}
+      <div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);"><div style="width:14px;height:3px;background:var(--blue);border-radius:2px;"></div>Total income</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);"><div style="width:14px;height:3px;background:var(--amber);border-radius:2px;"></div>Inflation-adjusted</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);"><div style="width:14px;height:2px;background:var(--green);border-radius:1px;border-top:1.5px dashed var(--green);"></div>Goal</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px;">Dividend income only (no SS)</div>
+      ${svgChart({W:320,H:150,PAD:38,xLabels:ages,
+        lines:[{data:divData,color:'#3AAA35',fill:true}],
+        yFormat:v=>'$'+Math.round(v)
+      })}
+    </div>
+
+    <div class="card">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">Portfolio growth</div>
+      ${svgChart({W:320,H:160,PAD:50,xLabels:ages,
+        lines:[{data:rows.map(r=>r.bal),color:'#0D2B5E',fill:true}],
+        yFormat:v=>v>=1000000?'$'+(v/1000000).toFixed(1)+'M':'$'+(v/1000).toFixed(0)+'K'
+      })}
+    </div>`;
+}
+
+// ── TAB 2: Allocation ─────────────────────────────────────────────────────────
+function renderAllocationChart() {
+  const el = document.getElementById('tab-allocation');
+  const sleeves = {};
+  holdings.forEach(h => {
+    const val = h.shares*(h.livePrice||h.price);
+    if (!sleeves[h.sleeve]) sleeves[h.sleeve]={val:0,inc:0,color:h.color,count:0};
+    sleeves[h.sleeve].val  += val;
+    sleeves[h.sleeve].inc  += val*h.yield/100/12;
+    sleeves[h.sleeve].count++;
+  });
+
+  const entries = Object.entries(sleeves).sort((a,b)=>b[1].val-a[1].val);
+  const colors  = entries.map(([,d])=>d.color);
+
+  // Donut SVG
+  let donut = '<svg viewBox="0 0 120 120" style="display:block;width:140px;margin:0 auto;">';
+  let startAngle = -90, cx=60, cy=60, r=42, sw=18;
+  entries.forEach(([name,d],i) => {
+    const pct = d.val/totalVal;
+    const angle = pct * 360;
+    const rad = (a) => a*Math.PI/180;
+    const x1 = cx + r*Math.cos(rad(startAngle));
+    const y1 = cy + r*Math.sin(rad(startAngle));
+    const x2 = cx + r*Math.cos(rad(startAngle+angle));
+    const y2 = cy + r*Math.sin(rad(startAngle+angle));
+    const large = angle > 180 ? 1 : 0;
+    donut += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z" fill="${d.color}" opacity="0.85"/>`;
+    startAngle += angle;
+  });
+  donut += `<circle cx="${cx}" cy="${cy}" r="${r-sw}" fill="white"/>`;
+  donut += `<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="9" font-weight="700" fill="#0D2B5E">${DQ.fmtK(totalVal)}</text>`;
+  donut += `<text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="7" fill="#64748B">portfolio</text>`;
+  donut += '</svg>';
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px;text-align:center;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px;">Portfolio allocation by sleeve</div>
+      ${donut}
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      ${entries.map(([name,d])=>{
+        const pct = totalVal>0?d.val/totalVal*100:0;
+        return `
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+              <span style="font-size:11px;font-weight:600;color:var(--text);">${name} (${d.count})</span>
+              <span style="font-size:11px;font-weight:700;color:var(--navy);">${DQ.sfx(pct,1)}% &bull; ${DQ.fmt(d.inc)}/mo</span>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+              <div style="height:8px;width:${pct}%;background:${d.color};border-radius:4px;transition:width 0.6s;"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+    <div class="card">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Income by position</div>
+      ${svgChart({W:320,H:160,PAD:42,
+        bars:holdings.filter(h=>h.yield>0).sort((a,b)=>(b.shares*(b.livePrice||b.price)*b.yield)-(a.shares*(a.livePrice||a.price)*a.yield)).map(h=>({
+          v:h.shares*(h.livePrice||h.price)*h.yield/100/12,
+          color:h.color,
+          label:h.ticker
+        })),
+        xLabels:holdings.filter(h=>h.yield>0).sort((a,b)=>(b.shares*(b.livePrice||b.price)*b.yield)-(a.shares*(a.livePrice||a.price)*a.yield)).map(h=>h.ticker),
+        yFormat:v=>'$'+Math.round(v)
+      })}
+    </div>`;
+}
+
+// ── TAB 3: Yield Analysis ─────────────────────────────────────────────────────
+function renderYieldChart() {
+  const el = document.getElementById('tab-yield');
+  const sorted = [...holdings].sort((a,b)=>b.yield-a.yield);
+  const goal   = profile.income_goal || 3000;
+  const ss     = profile.ss_income   || 1800;
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Yield by holding (highest to lowest)</div>
+      ${sorted.map(h=>`
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+            <span style="font-size:11px;font-weight:700;color:var(--navy);">${h.ticker}</span>
+            <span style="font-size:11px;font-weight:700;color:${h.yield>0?'var(--green)':'var(--muted)'};">${h.yield>0?h.yield+'%':'No div.'}</span>
+          </div>
+          <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+            <div style="height:8px;width:${Math.min(h.yield/15*100,100)}%;background:${h.color};border-radius:4px;"></div>
+          </div>
+          <div style="font-size:9px;color:var(--muted);margin-top:1px;">${h.name}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:12px;">
+      <div class="stat-card blue">
+        <div class="stat-label">Blended yield</div>
+        <div class="stat-value">${DQ.sfx(blended*100,1)}%</div>
+        <div class="stat-sub">${blended*100>=6?'On target':'Below 6% target'}</div>
+      </div>
+      <div class="stat-card ${totalInc+ss>=goal?'green':'red'}">
+        <div class="stat-label">Total income/mo</div>
+        <div class="stat-value" style="font-size:17px;">${DQ.fmt(totalInc+ss)}</div>
+        <div class="stat-sub">${Math.round((totalInc+ss)/goal*100)}% of ${DQ.fmt(goal)} goal</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Yield benchmark comparison</div>
+      ${[
+        {label:'Your blended yield',       val:blended*100,         color:'var(--blue)'},
+        {label:'Target retirement yield',  val:6.0,                 color:'var(--green)'},
+        {label:'S&P 500 dividend yield',   val:1.4,                 color:'var(--muted)'},
+        {label:'10-yr Treasury yield',     val:4.4,                 color:'var(--amber)'},
+        {label:'SGOV (risk-free)',          val:5.2,                 color:'var(--teal)'},
+        {label:'JEPI (covered calls)',      val:8.5,                 color:'var(--purple)'},
+      ].map(b=>`
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+            <span style="font-size:11px;color:var(--text);">${b.label}</span>
+            <span style="font-size:11px;font-weight:700;color:${b.color};">${DQ.sfx(b.val,1)}%</span>
+          </div>
+          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="height:6px;width:${Math.min(b.val/15*100,100)}%;background:${b.color};border-radius:3px;"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── TAB 4: Dividend Map ───────────────────────────────────────────────────────
+function renderDividendChart() {
+  const el = document.getElementById('tab-dividend');
+  const divPayers = holdings.filter(h=>h.yield>0);
+  const noDivPayers = holdings.filter(h=>h.yield===0);
+  const totalDivVal = divPayers.reduce((s,h)=>s+h.shares*(h.livePrice||h.price),0);
+  const noDivVal    = noDivPayers.reduce((s,h)=>s+h.shares*(h.livePrice||h.price),0);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px;">Dividend vs non-dividend capital</div>
+      <div style="display:flex;height:24px;border-radius:12px;overflow:hidden;margin-bottom:8px;">
+        <div style="background:var(--green);width:${totalVal>0?totalDivVal/totalVal*100:0}%;transition:width 0.6s;" title="Dividend-paying: ${DQ.fmtK(totalDivVal)}"></div>
+        <div style="background:var(--border);flex:1;" title="Non-dividend: ${DQ.fmtK(noDivVal)}"></div>
+      </div>
+      <div style="display:flex;gap:16px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;"><div style="width:12px;height:12px;background:var(--green);border-radius:2px;"></div>Dividend-paying: ${DQ.fmtK(totalDivVal)} (${totalVal>0?DQ.sfx(totalDivVal/totalVal*100,0):0}%)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;"><div style="width:12px;height:12px;background:var(--border);border-radius:2px;"></div>No dividend: ${DQ.fmtK(noDivVal)} (${totalVal>0?DQ.sfx(noDivVal/totalVal*100,0):0}%)</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">Monthly income contribution</div>
+      ${divPayers.sort((a,b)=>(b.shares*(b.livePrice||b.price)*b.yield)-(a.shares*(a.livePrice||a.price)*a.yield)).map(h=>{
+        const hInc = h.shares*(h.livePrice||h.price)*h.yield/100/12;
+        const pct  = totalInc>0?hInc/totalInc*100:0;
+        return `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="font-size:12px;font-weight:800;color:var(--navy);width:44px;">${h.ticker}</div>
+            <div style="flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden;">
+              <div style="height:12px;width:${pct}%;background:${h.color};border-radius:6px;transition:width 0.6s;"></div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:${h.color};width:60px;text-align:right;">${DQ.fmt(hInc)}/mo</div>
+            <div style="font-size:10px;color:var(--muted);width:36px;text-align:right;">${DQ.sfx(pct,0)}%</div>
+          </div>`;
+      }).join('')}
+    </div>
+
+    ${noDivPayers.length ? `
+    <div class="card red">
+      <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px;">Non-dividend positions (${noDivPayers.length})</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;">These positions generate $0 dividend income. Consider your reason for holding each.</div>
+      ${noDivPayers.map(h=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(220,38,38,0.1);">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);">${h.ticker}</div>
+        <div style="font-size:11px;color:var(--muted);">${DQ.fmtK(h.shares*(h.livePrice||h.price))} &bull; $0/mo income</div>
+      </div>`).join('')}
+    </div>` : ''}`;
+}
+</script>
+</body>
+</html>

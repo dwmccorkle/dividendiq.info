@@ -312,7 +312,14 @@ function addBubble(role, text) {
   const isUser = role === 'user';
   const div = document.createElement('div');
   div.className = 'chat-bubble' + (isUser ? ' user' : '');
-  div.innerHTML = `<div class="chat-avatar" ${isUser ? 'style="background:#dcfce7;color:#166534;"' : 'style="padding:0;overflow:hidden;background:var(--navy);"'}>${isUser ? 'Me' : '<img src="./logo-square.png" style="width:30px;height:30px;object-fit:cover;border-radius:50%;" alt="DQ"/>'}</div>`<div class="chat-text" ${isUser ? 'style="background:var(--blue-lt);color:#042C53;border-radius:12px 4px 12px 12px;"' : ''}>${text.replace(/\n/g,'<br>')}</div>`;
+  const avatarHTML = isUser
+    ? '<div class="chat-avatar" style="background:#dcfce7;color:#166534;">Me</div>'
+    : '<div class="chat-avatar" style="padding:0;overflow:hidden;background:var(--navy);"><img src="./logo-square.png" style="width:30px;height:30px;object-fit:cover;border-radius:50%;" alt="DQ" onerror="this.parentNode.textContent='DQ'"/></div>';
+  const bubbleStyle = isUser
+    ? 'background:var(--blue-lt);color:#042C53;border-radius:12px 4px 12px 12px;'
+    : '';
+  div.innerHTML = avatarHTML + '<div class="chat-text" style="' + bubbleStyle + '">' + text.replace(/
+/g,'<br>') + '</div>';
   feed.appendChild(div);
   feed.scrollTop = feed.scrollHeight;
   return div;
@@ -322,7 +329,7 @@ function addTyping() { return addTypingTo(document.getElementById('chat-feed'));
 function addTypingTo(feed) {
   const div = document.createElement('div');
   div.className = 'chat-bubble';
-  div.innerHTML = '<div class="chat-avatar">DQ</div><div class="chat-text"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
+  div.innerHTML = '<div class="chat-avatar" style="padding:0;overflow:hidden;background:var(--navy);"><img src="./logo-square.png" style="width:30px;height:30px;object-fit:cover;border-radius:50%;" onerror="this.parentNode.textContent='DQ'"/></div><div class="chat-text"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
   feed.appendChild(div);
   feed.scrollTop = feed.scrollHeight;
   return div;

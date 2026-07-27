@@ -240,9 +240,8 @@ function spinner(size=20) {
 
 function buildNav(activePage) {
   const pages = [
-    { href: 'index.html',      label: 'Home' },
+    { href: 'dashboard.html',  label: 'Dashboard' },
     { href: 'advisor.html',    label: 'Advisor' },
-    { href: 'calculator.html', label: 'Calculator' },
     { href: 'markets.html',    label: 'Markets' },
     { href: 'learn.html',      label: 'Learn' },
     { href: 'portfolio.html',  label: 'Portfolio' },
@@ -252,7 +251,7 @@ function buildNav(activePage) {
   nav.className = 'nav';
   nav.innerHTML = `
     <a href="index.html" class="nav-logo" style="gap:0;">
-      <img src="./logo-square.png" alt="DividendIQ" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;"/>
+      <img src="./logo-square.png" alt="DividendIQ" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'"/>
       <span style="margin-left:8px;">Dividend<span style="color:var(--green);">IQ</span></span>
     </a>
     <div class="nav-links">
@@ -264,7 +263,7 @@ function buildNav(activePage) {
 
 function buildBottomNav(activePage) {
   const items = [
-    { href:'index.html',      icon:'&#127968;', label:'Home' },
+    { href:'dashboard.html',  icon:'&#127942;', label:'Score' },
     { href:'advisor.html',    icon:'&#129504;', label:'Advisor' },
     { href:'markets.html',    icon:'&#128202;', label:'Markets' },
     { href:'calculator.html', icon:'&#128200;', label:'Calc' },

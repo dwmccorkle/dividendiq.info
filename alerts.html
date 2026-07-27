@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Alerts -- DividendIQ Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>:root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}</style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+
+<div class="page">
+  <div class="page-content">
+
+    <!-- Summary bar -->
+    <div class="stats-grid three" style="margin-top:14px;">
+      <div class="stat-card red"><div class="stat-label">Active alerts</div><div class="stat-value" id="active-count">--</div><div class="stat-sub">unread</div></div>
+      <div class="stat-card blue"><div class="stat-label">Preferences</div><div class="stat-value" id="pref-count">--</div><div class="stat-sub">enabled</div></div>
+      <div class="stat-card green"><div class="stat-label">This week</div><div class="stat-value" id="total-count">--</div><div class="stat-sub">total</div></div>
+    </div>
+
+    <!-- Category filter -->
+    <div style="display:flex;gap:5px;overflow-x:auto;margin:12px 0;padding-bottom:4px;" id="cat-filter"></div>
+
+    <!-- Alert feed -->
+    <div class="section-label">Recent alerts</div>
+    <div id="alert-feed"></div>
+
+    <!-- Preferences -->
+    <div class="section-label" style="margin-top:20px;">Alert preferences</div>
+
+    <div style="font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px;display:flex;align-items:center;gap:6px;">&#128680; CRITICAL -- INCOME PROTECTION</div>
+    <div class="card" id="critical-prefs" style="margin-bottom:12px;"></div>
+
+    <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:6px;display:flex;align-items:center;gap:6px;">&#128276; STANDARD -- INCOME TRACKING</div>
+    <div class="card" id="standard-prefs" style="margin-bottom:14px;"></div>
+
+    <button class="btn primary full" id="save-btn" onclick="savePrefs()">Save alert preferences</button>
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.6;">Alerts are for informational purposes only. Not financial advice.</div>
+
+    <div style="height:80px;"></div>
+  </div>
+</div>
+
+<div id="bottom-nav-placeholder"></div>
+
+<script src="./app.js"></script>
+<script>
+const DQ = window.DQ;
+const profile = DQ.State.profile();
+
+const ALL_ALERTS = [
+  {cat:'critical', icon:'&#128680;', title:'Dividend cut risk: FSK', body:'FSK (FS KKR Capital) payout ratio reached 107% in Q2 2026. When payout exceeds earnings, a dividend cut often follows within 2 quarters. Consider reducing your position or watching closely.', time:'Today', color:'var(--red)', bg:'var(--red-lt)', read:false, pref:'dividendCut', action:'View in Analyzer', href:'analyzer.html?ticker=FSK'},
+  {cat:'critical', icon:'&#128202;', title:'Your Retirement Score dropped: 87 to 74', body:'Your score fell 13 points this week. Primary cause: CVX down 8.3% reduced your income sleeve value. Secondary: blended yield dropped from 6.2% to 5.8%. Your income gap widened to $1,240/mo. Recommended: review rebalancing options.', time:'Yesterday', color:'var(--red)', bg:'var(--red-lt)', read:false, pref:'scoreChange', action:'View full score', href:'dashboard.html'},
+  {cat:'income', icon:'&#127919;', title:'Income goal: 94% reached!', body:'Your estimated dividend income hit $2,820/mo this month -- 94% of your $3,000 goal. You need just $180 more per month. Adding 15 shares of ARCC would close the gap completely.', time:'This morning', color:'var(--green)', bg:'var(--green-lt)', read:false, pref:'incomeGoal', action:'Run analyzer', href:'analyzer.html?ticker=ARCC'},
+  {cat:'income', icon:'&#128197;', title:'Ex-dividend in 2 days: JEPI', body:'JEPI goes ex-dividend on July 28. You must own shares by market close tomorrow (July 27) to receive the August payment. Estimated payment: $43 based on your 48 shares at current rates.', time:'2 hours ago', color:'var(--teal)', bg:'var(--teal-lt)', read:false, pref:'exDivCountdown', action:'View dividend calendar', href:'markets.html'},
+  {cat:'income', icon:'&#128197;', title:'Ex-dividend in 5 days: SGOV', body:'SGOV (iShares 0-3M Treasury) goes ex-dividend July 31. Estimated payment: $3.90 on your 9 shares. SGOV pays monthly -- your next payment after this will be late August.', time:'4 hours ago', color:'var(--teal)', bg:'var(--teal-lt)', read:true, pref:'exDivCountdown', action:'View markets', href:'markets.html'},
+  {cat:'warning', icon:'&#9888;', title:'Concentration warning: SLV at 10.9%', body:'Silver Trust (SLV) now represents 10.9% of your portfolio -- above the recommended 5-8% maximum for a single commodity position. Silver is highly volatile with no dividend income. Consider trimming.', time:'Monday', color:'var(--amber)', bg:'var(--amber-lt)', read:true, pref:'concentration', action:'View portfolio', href:'portfolio.html'},
+  {cat:'warning', icon:'&#128200;', title:'Yield spike: AGNC above 14%', body:'AGNC yield jumped to 14.2% -- above its 12-month average of 12.8%. This could mean the stock price fell (buying opportunity) or the market is pricing in a dividend cut risk. Check recent earnings before acting.', time:'Tuesday', color:'var(--amber)', bg:'var(--amber-lt)', read:true, pref:'yieldSpike', action:'Analyze AGNC', href:'analyzer.html?ticker=AGNC'},
+  {cat:'weekly', icon:'&#128240;', title:'Weekly portfolio summary', body:'Week ending July 25: Portfolio value $47,487 (down $398 on the week). Dividend income on track: $54/mo. Your best performer: RTX +$185 (+7.3%). Biggest drag: SLV -$184. Your Retirement Score held at 74.', time:'Monday 8:00 AM', color:'var(--blue)', bg:'var(--blue-lt)', read:true, pref:'weeklyReport', action:'View dashboard', href:'dashboard.html'},
+  {cat:'picks', icon:'&#127942;', title:'Today\'s top pick: MAIN', body:'Main Street Capital (MAIN) -- Best-in-class BDC. 8.5% yield, pays monthly, raised dividend 4% in February 2026. Has paid supplemental dividends every quarter. At current prices, $5,000 invested generates $35/mo in income.', time:'7:00 AM', color:'var(--green)', bg:'var(--green-lt)', read:true, pref:'newPicks', action:'Analyze MAIN', href:'analyzer.html?ticker=MAIN'},
+];
+
+const PREFS_CONFIG = [
+  {id:'dividendCut',     label:'Dividend cut warnings',      desc:'When payout ratio exceeds 100% or earnings miss suggests cut risk', icon:'&#128680;', critical:true},
+  {id:'scoreChange',     label:'Retirement Score changes',   desc:'When your score moves 5+ points up or down',                       icon:'&#128202;', critical:true},
+  {id:'concentration',   label:'Portfolio concentration',    desc:'When any position exceeds 8% of your portfolio',                   icon:'&#9888;',   critical:true},
+  {id:'yieldSpike',      label:'Yield spike alerts',         desc:'When yield jumps abnormally -- possible cut risk or price drop',    icon:'&#128200;', critical:true},
+  {id:'exDivCountdown',  label:'Ex-dividend countdowns',     desc:'2 days before each ex-dividend date in your portfolio',            icon:'&#128197;', critical:false},
+  {id:'incomeGoal',      label:'Income goal milestones',     desc:'When you hit 25%, 50%, 75%, 90%, 100% of your monthly income goal',icon:'&#127919;', critical:false},
+  {id:'dividendReminder',label:'Dividend payment reminders', desc:'Summary of dividends received and upcoming payments',              icon:'&#128176;', critical:false},
+  {id:'weeklyReport',    label:'Weekly portfolio summary',   desc:'Monday morning digest sent to ' + (profile.email||'your email'),   icon:'&#128240;', critical:false},
+  {id:'newPicks',        label:'Daily top dividend pick',    desc:'Best dividend opportunity each morning based on your strategies',  icon:'&#127942;', critical:false},
+];
+
+let prefs = DQ.State.get('alert_prefs', Object.fromEntries(PREFS_CONFIG.map(p=>[p.id, true])));
+let activeCat = 'all';
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('nav-placeholder').appendChild(DQ.buildNav(''));
+  document.getElementById('bottom-nav-placeholder').appendChild(DQ.buildBottomNav(''));
+  renderSummary();
+  renderCatFilter();
+  renderFeed();
+  renderPrefs();
+});
+
+function renderSummary() {
+  const unread = ALL_ALERTS.filter(a=>!a.read).length;
+  const enabled = Object.values(prefs).filter(Boolean).length;
+  document.getElementById('active-count').textContent = unread;
+  document.getElementById('pref-count').textContent   = enabled + '/' + PREFS_CONFIG.length;
+  document.getElementById('total-count').textContent  = ALL_ALERTS.length;
+}
+
+function renderCatFilter() {
+  const cats = [
+    {key:'all',      label:'All',       count:ALL_ALERTS.length},
+    {key:'critical', label:'Critical',  count:ALL_ALERTS.filter(a=>a.cat==='critical').length},
+    {key:'income',   label:'Income',    count:ALL_ALERTS.filter(a=>a.cat==='income').length},
+    {key:'warning',  label:'Warnings',  count:ALL_ALERTS.filter(a=>a.cat==='warning').length},
+    {key:'weekly',   label:'Weekly',    count:ALL_ALERTS.filter(a=>a.cat==='weekly').length},
+    {key:'picks',    label:'Picks',     count:ALL_ALERTS.filter(a=>a.cat==='picks').length},
+  ];
+  const el = document.getElementById('cat-filter');
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (c.key==='all'?' active':'');
+    btn.style.fontSize = '10px';
+    btn.innerHTML = c.label + (c.count?` <span style="background:${activeCat===c.key?'var(--blue)':'var(--border)'};color:${activeCat===c.key?'white':'var(--muted)'};border-radius:10px;padding:1px 5px;font-size:9px;">${c.count}</span>`:'');
+    btn.onclick = () => {
+      activeCat = c.key;
+      el.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderFeed();
+    };
+    el.appendChild(btn);
+  });
+}
+
+function renderFeed() {
+  const displayed = activeCat==='all' ? ALL_ALERTS : ALL_ALERTS.filter(a=>a.cat===activeCat);
+  const el = document.getElementById('alert-feed');
+  if (!displayed.length) { el.innerHTML='<div class="card text-center"><div style="font-size:13px;color:var(--muted);">No alerts in this category.</div></div>'; return; }
+  el.innerHTML = displayed.map((a,i)=>`
+    <div class="alert-item ${a.cat==='critical'?'critical':a.cat==='warning'?'warning':a.cat==='income'?'income':''} ${!a.read?'unread':''}" style="border-left-color:${a.color};background:${a.read?'var(--bg)':a.bg};">
+      <div class="alert-header">
+        <div class="alert-icon">${a.icon}</div>
+        <div class="alert-title" style="color:${a.read?'var(--navy)':a.color};">${a.title}</div>
+        <div class="alert-time">${a.time}</div>
+      </div>
+      <div class="alert-body">${a.body}</div>
+      ${a.action?`<a href="${a.href||'#'}" class="alert-action" style="color:${a.color};background:${a.color}15;border-color:${a.color}33;">${a.action}</a>`:''}
+    </div>`).join('');
+}
+
+function renderPrefs() {
+  const critEl = document.getElementById('critical-prefs');
+  const stdEl  = document.getElementById('standard-prefs');
+
+  [critEl, stdEl].forEach(el => el.innerHTML = '');
+
+  PREFS_CONFIG.forEach((p,i) => {
+    const on = prefs[p.id];
+    const isLast = PREFS_CONFIG.filter(x=>x.critical===p.critical).indexOf(p) === PREFS_CONFIG.filter(x=>x.critical===p.critical).length-1;
+    const el = document.createElement('div');
+    el.style.cssText = `display:flex;align-items:center;gap:12px;padding:10px 0;${!isLast?'border-bottom:1px solid var(--border);':''}`;
+    el.innerHTML = `
+      <span style="font-size:18px;flex-shrink:0;">${p.icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${p.label}</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4;">${p.desc}</div>
+      </div>
+      <button class="toggle ${on?(p.critical?'red-on':'on'):''}" id="toggle-${p.id}" onclick="togglePref('${p.id}',${p.critical})"></button>`;
+    (p.critical ? critEl : stdEl).appendChild(el);
+  });
+}
+
+function togglePref(id, isCritical) {
+  prefs[id] = !prefs[id];
+  const btn = document.getElementById('toggle-'+id);
+  btn.className = 'toggle ' + (prefs[id] ? (isCritical?'red-on':'on') : '');
+  renderSummary();
+}
+
+function savePrefs() {
+  DQ.State.set('alert_prefs', prefs);
+  const btn = document.getElementById('save-btn');
+  btn.textContent = 'Preferences saved!';
+  btn.className = 'btn green full';
+  setTimeout(()=>{ btn.textContent='Save alert preferences'; btn.className='btn primary full'; }, 2500);
+  DQ.showToast('Alert preferences saved');
+}
+</script>
+</body>
+</html>
